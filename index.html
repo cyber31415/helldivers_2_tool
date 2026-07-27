@@ -81,7 +81,7 @@ const LOADOUT_POOL = [
   name: "PLAS-1 Scorcher",
   category: "Primary",
   archetype: "Energy-Based",
-  source: "Free (base game)",
+  source: "Helldivers Mobilize",
   score: 7.0,
   note: "\"One of the most trusted weapons in the game, especially against Automatons\" (FandomWire Mar 2026). Explosive splash, decent all-rounder if you don't have the Purifier yet."
 }, {
@@ -94,6 +94,16 @@ const LOADOUT_POOL = [
   source: "Dust Devils",
   score: 8.5,
   note: "Bugs/Squids — sustained volume, zero charge discipline. Field-tested ammo economy while kiting."
+}, {
+  id: "item-liberator",
+  grades: "B/B/B",
+  sources: 0,
+  name: "AR-23 Liberator",
+  category: "Primary",
+  archetype: "Assault Rifle",
+  source: "Free (base game)",
+  score: 5.5,
+  note: "The starter rifle — everyone already has it. Balanced and forgiving with no real weakness, but nothing it does is better than a dedicated pick. Treat it as the baseline you're upgrading away from. No named tier-list source; the grade is the calculated rating only."
 }, {
   id: "item-eruptor",
   grades: "S/A/A",
@@ -111,7 +121,7 @@ const LOADOUT_POOL = [
   name: "JAR-5 Dominator",
   category: "Primary",
   archetype: "Explosive",
-  source: "Free (base game)",
+  source: "Steeled Veterans",
   score: 6.0,
   note: "Battle-rifle-weight explosive rounds, slower handling. Community consensus is solid-but-unspectacular — a fine pick, not a standout."
 }, {
@@ -120,10 +130,10 @@ const LOADOUT_POOL = [
   sources: 2,
   name: "LAS-16 Sickle",
   category: "Primary",
-  archetype: "Assault Rifle",
+  archetype: "Energy-Based",
   source: "Cutting Edge",
   score: 8.0,
-  note: "Solid all-fronts assault rifle; several Entrenched Division weapons currently edge it out for the top primary slot. Heat-based, infinite ammo via mag swaps."
+  note: "Solid all-fronts laser rifle; several Entrenched Division weapons currently edge it out for the top primary slot. Heat-based, infinite ammo via mag swaps."
 }, {
   id: "item-stoker",
   grades: "A/S+/S+",
@@ -133,7 +143,7 @@ const LOADOUT_POOL = [
   archetype: "SMG",
   source: "Entrenched Division",
   score: 8.8,
-  note: "Bugs/Squids — 780 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot."
+  note: "Bugs/Squids — 420 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot."
 }, {
   id: "item-m7s",
   grades: "C/C/C",
@@ -141,7 +151,7 @@ const LOADOUT_POOL = [
   name: "M7S SMG",
   category: "Primary",
   archetype: "SMG",
-  source: "Free (base game)",
+  source: "Obedient Democracy Support Troopers",
   score: 5.0,
   note: "\"Usable, but mostly unremarkable\" (FandomWire Mar 2026) — fits stealth/mobility builds, no strong reason to pick over the Stoker otherwise."
 }, {
@@ -161,7 +171,7 @@ const LOADOUT_POOL = [
   name: "SG-225IE Breaker Incendiary",
   category: "Primary",
   archetype: "Shotgun",
-  source: "Free (base game)",
+  source: "Steeled Veterans",
   score: 7.2,
   note: "Long-standing top anti-bug pick — fire DoT plus spread makes it excellent on Terminid-heavy sessions specifically."
 }, {
@@ -181,7 +191,7 @@ const LOADOUT_POOL = [
   name: "R-63CS Diligence Counter Sniper",
   category: "Primary",
   archetype: "Marksman/Sniper",
-  source: "Free (base game)",
+  source: "Helldivers Mobilize",
   score: 6.8,
   note: "Standard-issue DMR reputation — high per-shot damage, no stealth gimmick, works well the moment you unlock it."
 }, {
@@ -213,7 +223,7 @@ const LOADOUT_POOL = [
   name: "PLAS-15 Loyalist",
   category: "Secondary",
   archetype: "Energy/CQC Backup",
-  source: "Free (base game)",
+  source: "Truth Enforcers",
   score: 6.0,
   note: "\"Pocket Purifier\" characterization independently corroborated by Febspot (Mar 2026). Charge-up plasma pistol — riskier than the Talon since charging exposes you, but hits harder per shot."
 }, {
@@ -233,7 +243,7 @@ const LOADOUT_POOL = [
   name: "P-11 Stim Pistol",
   category: "Secondary",
   archetype: "Utility",
-  source: "Free (base game)",
+  source: "Chemical Agents",
   score: 5.8,
   note: "Heals a downed/injured squadmate from range without a revive animation. Pure coop utility — low value solo."
 }, {
@@ -305,7 +315,7 @@ const LOADOUT_POOL = [
   name: "G-23 Stun",
   category: "Throwable",
   archetype: "Crowd Control",
-  source: "Free (base game)",
+  source: "Cutting Edge",
   score: 8.0,
   note: "Independently corroborated as a top crowd-control pick by mein-mmo.de, game-rezone.com, and FandomWire (all 2026). Carries 4 (5 max). Converts a ~30% manual hit into ~95% paired with OPS/500kg."
 }, {
@@ -325,7 +335,7 @@ const LOADOUT_POOL = [
   name: "G-16 Impact",
   category: "Throwable",
   archetype: "Anti-Armor",
-  source: "Free (base game)",
+  source: "Helldivers Mobilize",
   score: 7.0,
   note: "Independently corroborated by mein-mmo.de and game-rezone.com as a recommended precision pick. Bots — no fuse, detonates on contact. Best for fortifications and trench clusters."
 }, {
@@ -335,7 +345,7 @@ const LOADOUT_POOL = [
   name: "G-10 Incendiary",
   category: "Throwable",
   archetype: "Crowd Control",
-  source: "Free (base game)",
+  source: "Steeled Veterans",
   score: 6.3,
   note: "Bugs — area denial via fire pool. Teamkill risk in tight spots."
 },
@@ -374,7 +384,7 @@ const LOADOUT_POOL = [
   id: "item-demprotects",
   grades: "A/A/A",
   sources: 2,
-  name: "Democracy Protects (DP-40)",
+  name: "Democracy Protects (DP-40 Hero of the Federation)",
   category: "Armor",
   archetype: "Survive Lethal Hits",
   source: "Helldivers Mobilize — DP-40 Hero of the Federation",
@@ -552,7 +562,7 @@ const BOOSTER_ITEMS = [{
   archetype: "Squad Reinforcements",
   source: "Steeled Veterans",
   score: 6.0,
-  note: "Cuts the wait for new reinforcements once depleted by ~12s. Marginal in a full squad, genuinely useful solo where you only get 5 total lives. Page 3, 75 Medals."
+  note: "Cuts the reinforcement cooldown by 25% once depleted — 2:00 down to 1:30, so 30s saved. Marginal in a full squad, genuinely useful solo where you only get 5 total lives. Page 3, 75 Medals."
 }, {
   id: "item-locconf",
   grades: "B/A/B",
@@ -578,10 +588,10 @@ const VEHICLE_ITEMS = [{
   id: "item-lumberer",
   grades: "A/S/A",
   sources: 0,
-  name: "EXO-51 Lumberer",
+  name: "EXO-51 Lumberer Exosuit",
   category: "Vehicle",
   source: "Exo Experts",
-  note: "High HP pool, 8-minute cooldown — strong if you rotate mechs into your loadout. Best vs bugs/mixed fronts."
+  note: "High HP pool, 7-minute (420s) cooldown — strong if you rotate mechs into your loadout. Best vs bugs/mixed fronts."
 }];
 
 // STRATAGEM_POOL: single composite score (blended coop+solo), `cat` doubles as the TYPE filter
@@ -665,7 +675,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy", "objective"],
   score: 9.1,
-  note: "90s base cooldown, 77s with modules. All-fronts core, corroborated by Switchblade, GAMES.GG, u.gg."
+  note: "90s base cooldown, 81s with Zero-G Breech Loading. All-fronts core, corroborated by Switchblade, GAMES.GG, u.gg."
 }, {
   id: "orb-railcannon",
   grades: "S+/S+/A",
@@ -675,7 +685,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 6.5,
-  note: "High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 179s cd caps real uptime."
+  note: "High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 180s cd caps real uptime."
 }, {
   id: "orb-laser",
   grades: "S/S/S+",
@@ -761,7 +771,7 @@ const STRATAGEM_POOL = [{
   id: "sup-quasar",
   grades: "S/S/C",
   sources: 2,
-  name: "Quasar Cannon",
+  name: "LAS-99 Quasar Cannon",
   cat: "support",
   usesBackpack: false,
   source: "Free (base game)",
@@ -860,7 +870,7 @@ const STRATAGEM_POOL = [{
   id: "sup-lasercannon",
   grades: "B/B/B",
   sources: 1,
-  name: "Laser Cannon",
+  name: "LAS-98 Laser Cannon",
   cat: "support",
   usesBackpack: false,
   source: "Free (base game)",
@@ -891,7 +901,7 @@ const STRATAGEM_POOL = [{
   id: "bp-supply",
   grades: "A/A/A",
   sources: 0,
-  name: "Supply Pack",
+  name: "B-1 Supply Pack",
   cat: "backpack",
   source: "Free (base game)",
   roles: ["sustain", "survivability"],
@@ -911,7 +921,7 @@ const STRATAGEM_POOL = [{
   id: "bp-ballisticshield",
   grades: "B/B/B",
   sources: 1,
-  name: "Ballistic Shield Backpack",
+  name: "SH-20 Ballistic Shield Backpack",
   cat: "backpack",
   source: "Free (base game)",
   roles: ["survivability"],
@@ -921,7 +931,7 @@ const STRATAGEM_POOL = [{
   id: "bp-hellbomb",
   grades: "A/A/A",
   sources: 0,
-  name: "Portable Hellbomb",
+  name: "B-100 Portable Hellbomb",
   cat: "backpack",
   source: "Servants of Freedom",
   roles: ["anti-heavy", "objective"],
@@ -931,7 +941,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-ems",
   grades: "B/B/B",
   sources: 0,
-  name: "EMS Mortar Sentry",
+  name: "A/M-23 EMS Mortar Sentry",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["crowd-clear", "survivability"],
@@ -941,7 +951,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-mortar",
   grades: "S/S/S",
   sources: 1,
-  name: "Mortar Sentry",
+  name: "A/M-12 Mortar Sentry",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["crowd-clear"],
@@ -951,7 +961,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-autocannon",
   grades: "S/S/S",
   sources: 2,
-  name: "Autocannon Sentry",
+  name: "A/AC-8 Autocannon Sentry",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["anti-heavy", "crowd-clear"],
@@ -961,7 +971,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-rocket",
   grades: "S/S/S",
   sources: 1,
-  name: "Rocket Sentry",
+  name: "A/MLS-4X Rocket Sentry",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["anti-heavy"],
@@ -971,7 +981,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-tesla",
   grades: "S/S/S",
   sources: 1,
-  name: "Tesla Tower",
+  name: "A/ARC-3 Tesla Tower",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["crowd-clear"],
@@ -981,7 +991,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-mg",
   grades: "B/B/B",
   sources: 1,
-  name: "Machine Gun Sentry",
+  name: "A/MG-43 Machine Gun Sentry",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["crowd-clear"],
@@ -991,7 +1001,7 @@ const STRATAGEM_POOL = [{
   id: "emp-antitank",
   grades: "S/S/S",
   sources: 1,
-  name: "Anti-Tank Emplacement",
+  name: "E/AT-12 Anti-Tank Emplacement",
   cat: "sentry",
   source: "Urban Legends",
   roles: ["anti-heavy"],
@@ -1001,7 +1011,7 @@ const STRATAGEM_POOL = [{
   id: "emp-shieldrelay",
   grades: "S/S/S",
   sources: 1,
-  name: "Shield Generator Relay",
+  name: "FX-12 Shield Generator Relay",
   cat: "sentry",
   source: "Free (base game)",
   roles: ["survivability"],
@@ -1011,7 +1021,7 @@ const STRATAGEM_POOL = [{
   id: "sentry-flame",
   grades: "B/S/B",
   sources: 0,
-  name: "Flame Sentry",
+  name: "A/FLAM-40 Flame Sentry",
   cat: "sentry",
   source: "Urban Legends",
   roles: ["crowd-clear"],
@@ -1021,8 +1031,8 @@ const STRATAGEM_POOL = [{
   id: "emp-dirshield",
   grades: "A/A/A",
   sources: 0,
-  name: "Directional Shield",
-  cat: "sentry",
+  name: "SH-51 Directional Shield",
+  cat: "backpack",
   source: "Urban Legends",
   roles: ["survivability"],
   score: 6.8,
@@ -1064,7 +1074,7 @@ const SHIP_MODULES = [
   cat: "Hangar",
   label: "Tier 5",
   value: "Advanced Crew Training",
-  note: "Eagle rearm −10% further (120→105s) · 200c/250r/25s/30k req"
+  note: "Eagle rearm −10% further (120→108s), only if called in while Eagle uses remain · 200c/250r/20s/30k req"
 },
 // PATRIOTIC ADMINISTRATION CENTER (PAC) — Support weapon stratagems.
 {
@@ -1124,7 +1134,7 @@ const SHIP_MODULES = [
   cat: "Orbital Cannons",
   label: "Tier 3",
   value: "Zero-G Breech Loading",
-  note: "Orbital cooldown −10% (OPS 90→77s) · 80c/80r/10s"
+  note: "Orbital cooldown −10% (OPS 90→81s) · 80c/80r/10s"
 }, {
   id: "m-orb-4",
   priority: 21,
@@ -1147,14 +1157,14 @@ const SHIP_MODULES = [
   cat: "Bridge",
   label: "Tier 1",
   value: "Targeting Software Upgrade",
-  note: "Orbital call-in time −1s (all 11 Orbital stratagems) · 60 common"
+  note: "Orbital call-in time −1s (all 12 Orbital stratagems) · 60 common"
 }, {
   id: "m-bridge-2",
   priority: 13,
   cat: "Bridge",
   label: "Tier 2",
   value: "Nuclear Radar",
-  note: "Enemy ping radius on minimap +50m · 80c/40r"
+  note: "Enemy ping radius on minimap +50% (50m→75m) · 80c/40r"
 }, {
   id: "m-bridge-3",
   priority: 17,
@@ -1205,7 +1215,7 @@ const SHIP_MODULES = [
   cat: "Engineering Bay",
   label: "Tier 4",
   value: "Circuit Expansion",
-  note: "Lightning arcs (Arc Thrower, Tesla Tower) jump to +1 additional enemy · 200c/150r/20s/20k req"
+  note: "Lightning arcs (Arc Thrower, Tesla Tower) jump to 2 additional enemies · 200c/150r/20s/20k req"
 }, {
   id: "m-engbay-5",
   priority: 30,
@@ -1306,7 +1316,15 @@ const WARBOND_TIER = {
   "Truth Enforcers": 3,
   "Python Commandos": 3,
   "Force of Law": 3,
-  "Superstore": 4
+  "Superstore": 4,
+  // Not yet ranked — no tier-list backing found for these, so rather than inventing a buy-order
+  // they are pinned to 5, which is identical to the `?? 5` fallback at the sort sites (i.e. this
+  // changes no behaviour, it just stops them relying on an implicit default). Give them a real
+  // 0-3 tier if sourced data turns up. Every ALL_WARBONDS entry must appear here — qc.py enforces
+  // it, because this map is keyed on exact strings and a missing/renamed key fails silently.
+  "Masters of Ceremony": 5,
+  "Righteous Revenants": 5,
+  "Obedient Democracy Support Troopers": 5
 };
 const LETTER_VALUES = {
   "S+": 9.5,
