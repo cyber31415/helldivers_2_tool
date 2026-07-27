@@ -17,8 +17,6 @@
 <div id="error-box"></div>
 <div id="root"></div>
 <script>
-  // Visible error reporting: if anything below throws, show it on the page instead
-  // of leaving a silent blank screen.
   window.addEventListener("error", function (e) {
     document.getElementById("load-status").style.display = "none";
     var box = document.getElementById("error-box");
@@ -46,7 +44,7 @@ if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
 // Both have an archetype/type filter dropdown so you can browse a specific category side-by-side
 // rather than only seeing the top overall pick for a slot.
 //
-// CONFIDENCE SYSTEM: [H] hard number (patch notes/wiki fact)   [U] unverified in field
+// CONFIDENCE SYSTEM: hard number (patch notes/wiki fact)   unverified in field
 // Grade confidence is a `sources` count (how many named independent sources back that grade),
 // displayed as a colored badge: green (2+ Sources) = genuinely corroborated, yellow (1 Source)
 // = single reference, orange (Calculated Rating Only) = derived from real specs/mechanics with
@@ -75,7 +73,7 @@ const LOADOUT_POOL = [
   archetype: "Energy-Based",
   source: "Polar Patriots",
   score: 9.5,
-  note: "[M] #1 on GamesRadar (Jun 10), u.gg, LFCarry (Jul 14). [H] Cannot close holes/fabricators (plasma) — covered by Autocannon + Airstrike + OPS."
+  note: "#1 on GamesRadar (Jun 10), u.gg, LFCarry (Jul 14). Cannot close holes/fabricators (plasma) — covered by Autocannon + Airstrike + OPS."
 }, {
   id: "item-scorcher",
   grades: "B/S/B",
@@ -85,7 +83,7 @@ const LOADOUT_POOL = [
   archetype: "Energy-Based",
   source: "Free (base game)",
   score: 7.0,
-  note: "[M] \"One of the most trusted weapons in the game, especially against Automatons\" (FandomWire Mar 2026). Explosive splash, decent all-rounder if you don't have the Purifier yet."
+  note: "\"One of the most trusted weapons in the game, especially against Automatons\" (FandomWire Mar 2026). Explosive splash, decent all-rounder if you don't have the Purifier yet."
 }, {
   id: "item-coyote",
   grades: "A/S+/S+",
@@ -95,7 +93,7 @@ const LOADOUT_POOL = [
   archetype: "Assault Rifle",
   source: "Dust Devils",
   score: 8.5,
-  note: "[M+field] Bugs/Squids — sustained volume, zero charge discipline. Field-tested ammo economy while kiting."
+  note: "Bugs/Squids — sustained volume, zero charge discipline. Field-tested ammo economy while kiting."
 }, {
   id: "item-eruptor",
   grades: "S/A/A",
@@ -105,7 +103,7 @@ const LOADOUT_POOL = [
   archetype: "Explosive",
   source: "Democratic Detonation",
   score: 8.3,
-  note: "[M] Bots — closes holes/fabricators, heavy AP, siege tempo. Bolt-action, low ammo — pairs with Talon for CQC."
+  note: "Bots — closes holes/fabricators, heavy AP, siege tempo. Bolt-action, low ammo — pairs with Talon for CQC."
 }, {
   id: "item-dominator",
   grades: "B/B/B",
@@ -125,7 +123,7 @@ const LOADOUT_POOL = [
   archetype: "Assault Rifle",
   source: "Cutting Edge",
   score: 8.0,
-  note: "[M] Solid all-fronts assault rifle; several Entrenched Division weapons currently edge it out for the top primary slot. Heat-based, infinite ammo via mag swaps."
+  note: "Solid all-fronts assault rifle; several Entrenched Division weapons currently edge it out for the top primary slot. Heat-based, infinite ammo via mag swaps."
 }, {
   id: "item-stoker",
   grades: "A/S+/S+",
@@ -135,7 +133,7 @@ const LOADOUT_POOL = [
   archetype: "SMG",
   source: "Entrenched Division",
   score: 8.8,
-  note: "[M] Bugs/Squids — 780 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot."
+  note: "Bugs/Squids — 780 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot."
 }, {
   id: "item-m7s",
   grades: "C/C/C",
@@ -145,7 +143,7 @@ const LOADOUT_POOL = [
   archetype: "SMG",
   source: "Free (base game)",
   score: 5.0,
-  note: "[M] \"Usable, but mostly unremarkable\" (FandomWire Mar 2026) — fits stealth/mobility builds, no strong reason to pick over the Stoker otherwise."
+  note: "\"Usable, but mostly unremarkable\" (FandomWire Mar 2026) — fits stealth/mobility builds, no strong reason to pick over the Stoker otherwise."
 }, {
   id: "item-cookout",
   grades: "B/S+/A",
@@ -155,7 +153,7 @@ const LOADOUT_POOL = [
   archetype: "Shotgun",
   source: "Freedom's Flame",
   score: 7.5,
-  note: "[M] Bugs/Squids — pump-action incendiary shotgun. Fire-vulnerable Terminid roster makes this hit harder than raw numbers suggest."
+  note: "Bugs/Squids — pump-action incendiary shotgun. Fire-vulnerable Terminid roster makes this hit harder than raw numbers suggest."
 }, {
   id: "item-breakerie",
   grades: "C/S/A",
@@ -165,7 +163,7 @@ const LOADOUT_POOL = [
   archetype: "Shotgun",
   source: "Free (base game)",
   score: 7.2,
-  note: "[M] Long-standing top anti-bug pick — fire DoT plus spread makes it excellent on Terminid-heavy sessions specifically."
+  note: "Long-standing top anti-bug pick — fire DoT plus spread makes it excellent on Terminid-heavy sessions specifically."
 }, {
   id: "item-censor",
   grades: "S/B/B",
@@ -175,7 +173,7 @@ const LOADOUT_POOL = [
   archetype: "Marksman/Sniper",
   source: "Redacted Regiment",
   score: 7.3,
-  note: "[M] Bots — suppressed stealth marksman rifle, 20-rd mag, 10x scope. Silent kills keep patrols from converging. Light AP, low velocity."
+  note: "Bots — suppressed stealth marksman rifle, 20-rd mag, 10x scope. Silent kills keep patrols from converging. Light AP, low velocity."
 }, {
   id: "item-diligencecs",
   grades: "A/B/B",
@@ -186,6 +184,16 @@ const LOADOUT_POOL = [
   source: "Free (base game)",
   score: 6.8,
   note: "Standard-issue DMR reputation — high per-shot damage, no stealth gimmick, works well the moment you unlock it."
+}, {
+  id: "item-deadeye",
+  grades: "B/B/B",
+  sources: 1,
+  name: "R-6 Deadeye",
+  category: "Primary",
+  archetype: "Marksman/Sniper",
+  source: "Borderline Justice",
+  score: 6.8,
+  note: "Lever-action marksman rifle — high per-shot damage and heavy stagger, but slow lever-action follow-up. Pairs well with Siege-Ready or Peak Physique."
 },
 // SECONDARY
 {
@@ -197,7 +205,7 @@ const LOADOUT_POOL = [
   archetype: "Energy/CQC Backup",
   source: "Borderline Justice",
   score: 9.0,
-  note: "[M] A secondary is a BACKUP GUN — heat-based, never dry, covers CQC when primary is empty/charging."
+  note: "A secondary is a BACKUP GUN — heat-based, never dry, covers CQC when primary is empty/charging."
 }, {
   id: "item-loyalist",
   grades: "B/B/A",
@@ -207,7 +215,7 @@ const LOADOUT_POOL = [
   archetype: "Energy/CQC Backup",
   source: "Free (base game)",
   score: 6.0,
-  note: "[M] \"Pocket Purifier\" characterization independently corroborated by Febspot (Mar 2026). Charge-up plasma pistol — riskier than the Talon since charging exposes you, but hits harder per shot."
+  note: "\"Pocket Purifier\" characterization independently corroborated by Febspot (Mar 2026). Charge-up plasma pistol — riskier than the Talon since charging exposes you, but hits harder per shot."
 }, {
   id: "item-gp31",
   grades: "S/S/S",
@@ -217,7 +225,7 @@ const LOADOUT_POOL = [
   archetype: "Utility",
   source: "Democratic Detonation",
   score: 7.0,
-  note: "[M] Dedicated objective-closer — saves Autocannon rounds & Eagle uses on hole-dense missions."
+  note: "Dedicated objective-closer — saves Autocannon rounds & Eagle uses on hole-dense missions."
 }, {
   id: "item-stimpistol",
   grades: "B/B/B",
@@ -237,7 +245,7 @@ const LOADOUT_POOL = [
   archetype: "Anti-Tank",
   source: "Servants of Freedom",
   score: 7.8,
-  note: "[M] AP6 pocket anti-tank panic button."
+  note: "AP6 pocket anti-tank panic button."
 }, {
   id: "item-missilepistol",
   grades: "A/A/A",
@@ -247,7 +255,7 @@ const LOADOUT_POOL = [
   archetype: "Anti-Tank",
   source: "Exo Experts",
   score: 6.5,
-  note: "[M] GamesRadar (May 7, 2026): \"a pretty solid sidearm, particularly against the bots.\" Second anti-tank sidearm option, bundled with the Exo Experts mech content."
+  note: "GamesRadar (May 7, 2026): \"a pretty solid sidearm, particularly against the bots.\" Second anti-tank sidearm option, bundled with the Exo Experts mech content."
 }, {
   id: "item-senator",
   grades: "S+/S/A",
@@ -257,7 +265,7 @@ const LOADOUT_POOL = [
   archetype: "Heavy Hitter",
   source: "Steeled Veterans",
   score: 7.6,
-  note: "[M] Bots — heavy-AP revolver, small cylinder, slow reload, hits hard enough to finish priority targets."
+  note: "Bots — heavy-AP revolver, small cylinder, slow reload, hits hard enough to finish priority targets."
 }, {
   id: "item-verdict",
   grades: "B/B/B",
@@ -265,29 +273,19 @@ const LOADOUT_POOL = [
   name: "P-113 Verdict",
   category: "Secondary",
   archetype: "Heavy Hitter",
-  source: "Redacted Regiment",
+  source: "Polar Patriots",
   score: 6.2,
-  note: "Source confirmed via propelrc.com (Apr 2026) — heavy semi-auto pistol, explosive rounds, good burst finishing power. Grade itself stays [J]: found its source, not yet an independent performance ranking."
-}, {
-  id: "item-deadeye",
-  grades: "B/B/B",
-  sources: 0,
-  name: "R-6 Deadeye",
-  category: "Secondary",
-  archetype: "Precision",
-  source: "Borderline Justice",
-  score: 6.8,
-  note: "[M] Lever-action rifle secondary — high per-shot damage, slow follow-up."
+  note: "Polar Patriots page 3 (60 Medals), confirmed against helldivers.wiki.gg — heavy semi-auto pistol, explosive rounds, good burst finishing power. That confirms where to get it, not how it performs — the grade itself is still the calculated rating, with no independent tier-list backing found yet."
 }, {
   id: "item-warrant",
   grades: "B/B/A",
   sources: 0,
   name: "P-92 Warrant",
   category: "Secondary",
-  archetype: "Precision",
-  source: "Superstore (rotating)",
+  archetype: "Heavy Hitter",
+  source: "Superstore",
   score: 6.0,
-  note: "Gyrojet pistol, homing rounds, no damage falloff — more forgiving on aim than the Deadeye, but rotation-gated."
+  note: "Gyrojet pistol, homing rounds, no damage falloff — more forgiving on aim than a straight-line pistol. Permanently stocked on the Superstore's Force of Law page for 300 Super Credits — no rotation to wait out."
 },
 // THROWABLE
 {
@@ -299,7 +297,7 @@ const LOADOUT_POOL = [
   archetype: "Anti-Armor",
   source: "Democratic Detonation",
   score: 9.5,
-  note: "[M] Sticks + kills heavies. Carries 3 — lower capacity than some newer grenades, but unmatched per-throw value."
+  note: "Sticks + kills heavies. Carries 3 — lower capacity than some newer grenades, but unmatched per-throw value."
 }, {
   id: "item-stun",
   grades: "S/S/S",
@@ -309,7 +307,7 @@ const LOADOUT_POOL = [
   archetype: "Crowd Control",
   source: "Free (base game)",
   score: 8.0,
-  note: "[M] Independently corroborated as a top crowd-control pick by mein-mmo.de, game-rezone.com, and FandomWire (all 2026). [H] Carries 4 (5 max). Converts a ~30% manual hit into ~95% paired with OPS/500kg [J]."
+  note: "Independently corroborated as a top crowd-control pick by mein-mmo.de, game-rezone.com, and FandomWire (all 2026). Carries 4 (5 max). Converts a ~30% manual hit into ~95% paired with OPS/500kg."
 }, {
   id: "item-gas-nade",
   grades: "C/S/S",
@@ -319,7 +317,7 @@ const LOADOUT_POOL = [
   archetype: "Crowd Control",
   source: "Chemical Agents",
   score: 6.5,
-  note: "[M] Blind/confuse effect corroborated by u.gg and FandomWire. Bugs/Squids — confusion cloud on breaches/drops, wide radius. Weak vs bots (mechanical) — this specific caveat is my own inference [J], not independently sourced."
+  note: "Blind/confuse effect corroborated by u.gg and FandomWire. Bugs/Squids — confusion cloud on breaches/drops, wide radius. Weak vs bots (mechanical) — this specific caveat is my own inference, not independently sourced."
 }, {
   id: "item-impact",
   grades: "S/B/B",
@@ -329,7 +327,7 @@ const LOADOUT_POOL = [
   archetype: "Anti-Armor",
   source: "Free (base game)",
   score: 7.0,
-  note: "[M] Independently corroborated by mein-mmo.de and game-rezone.com as a recommended precision pick. Bots — no fuse, detonates on contact. Best for fortifications and trench clusters."
+  note: "Independently corroborated by mein-mmo.de and game-rezone.com as a recommended precision pick. Bots — no fuse, detonates on contact. Best for fortifications and trench clusters."
 }, {
   id: "item-incendiary-nade",
   grades: "B/S/B",
@@ -346,32 +344,32 @@ const LOADOUT_POOL = [
   id: "item-medkit-medium",
   grades: "S+/S+/S+",
   sources: 2,
-  name: "Med-Kit (Medium class)",
+  name: "Med-Kit (CM-09 Bonesnapper, Medium)",
   category: "Armor",
   archetype: "Survivability",
-  source: "Helldivers Mobilize — e.g. CM-09 Bonesnapper",
+  source: "Helldivers Mobilize",
   score: 9.0,
-  note: "[M] +2 stims, +2s duration. Medium for bot fronts where ranged fire is unavoidable."
+  note: "+2 stims, +2s duration. Medium for bot fronts where ranged fire is unavoidable."
 }, {
   id: "item-medkit-light",
   grades: "S+/S+/S+",
   sources: 2,
-  name: "Med-Kit (Light class)",
+  name: "Med-Kit (CM-21 Trench Paramedic, Light)",
   category: "Armor",
   archetype: "Survivability",
-  source: "Superstore (rotating) — e.g. CM-21 Trench Paramedic",
+  source: "Superstore",
   score: 9.0,
-  note: "[M] Same passive, Light class — built for solo kiting where stims are your only heal, but a fully legitimate coop pick too if you'd rather prioritize mobility over the team-buffered survivability of Medium."
+  note: "Same passive, Light class — built for solo kiting where stims are your only heal, but a fully legitimate coop pick too if you'd rather prioritize mobility over the team-buffered survivability of Medium."
 }, {
   id: "item-engkit",
   grades: "S/S/S",
   sources: 2,
-  name: "Engineering Kit",
+  name: "Engineering Kit (CE-35 Trench Engineer)",
   category: "Armor",
   archetype: "Utility",
-  source: "Helldivers Mobilize — e.g. CE-35 Trench Engineer",
+  source: "Helldivers Mobilize",
   score: 7.5,
-  note: "[M] +2 throwables = 5 Thermites. −30% crouch recoil."
+  note: "+2 throwables = 5 Thermites. −30% crouch recoil."
 }, {
   id: "item-demprotects",
   grades: "A/A/A",
@@ -381,15 +379,15 @@ const LOADOUT_POOL = [
   archetype: "Survive Lethal Hits",
   source: "Helldivers Mobilize — DP-40 Hero of the Federation",
   score: 8.0,
-  note: "[M] 50% chance to survive a lethal hit + no bleed damage. Medium class, free."
+  note: "50% chance to survive a lethal hit + no bleed damage. Medium class, free."
 }, {
   id: "item-adrenodef",
   grades: "B/B/B",
-  sources: 0,
-  name: "Adreno-Defibrillator",
+  sources: 1,
+  name: "Adreno-Defibrillator (AD-49 Apollonian)",
   category: "Armor",
   archetype: "Survive Lethal Hits",
-  source: "Unconfirmed source — verify in-game",
+  source: "Control Group",
   score: 5.8,
   note: "Auto-revives you if your body is still intact, with a timed second death shortly after — a window to get to cover or be revived properly, not a full save."
 }, {
@@ -401,7 +399,7 @@ const LOADOUT_POOL = [
   archetype: "Damage Resistance",
   source: "Democratic Detonation",
   score: 7.8,
-  note: "[M] Heavy — 30% recoil reduction crouched/prone + 50% explosive resistance. Best if you crouch-fire and call stratagems aggressively."
+  note: "Heavy — 30% recoil reduction crouched/prone + 50% explosive resistance. Best if you crouch-fire and call stratagems aggressively."
 }, {
   id: "item-inflammable",
   grades: "B/S+/B",
@@ -411,7 +409,7 @@ const LOADOUT_POOL = [
   archetype: "Damage Resistance",
   source: "Freedom's Flame",
   score: 6.5,
-  note: "[M] 75% fire resistance, Light class. The counterpart to Fortified — pick based on which damage type is actually hurting you, explosive (bots/mines) or fire (your own flamethrower splash, bug fire attacks)."
+  note: "75% fire resistance, Light class. The counterpart to Fortified — pick based on which damage type is actually hurting you, explosive (bots/mines) or fire (your own flamethrower splash, bug fire attacks)."
 }, {
   id: "item-servoassisted",
   grades: "C/C/C",
@@ -426,44 +424,44 @@ const LOADOUT_POOL = [
   id: "item-scout",
   grades: "A/A/A",
   sources: 1,
-  name: "Scout",
+  name: "Scout (SC-30 Trailblazer Scout)",
   category: "Armor",
   archetype: "Mobility/Stealth",
   source: "Helldivers Mobilize",
   score: 7.0,
-  note: "[M] Reduced detection range + radar pings from placed markers. Bypass fights instead of starting them — strong on objective-heavy missions."
+  note: "Reduced detection range + radar pings from placed markers. Bypass fights instead of starting them — strong on objective-heavy missions."
 }, {
   id: "item-reducedsig",
   grades: "A/A/A",
-  sources: 0,
-  name: "Reduced Signature",
+  sources: 1,
+  name: "Reduced Signature (RS-89 Shadow Paragon)",
   category: "Armor",
   archetype: "Mobility/Stealth",
-  source: "Unconfirmed source — verify in-game",
+  source: "Redacted Regiment",
   score: 6.8,
   note: "Similar detection-reduction effect to Scout on a different armor set — genuinely close in function, pick whichever set's stats you prefer."
 }, {
   id: "item-peakphysique",
   grades: "B/B/B",
   sources: 1,
-  name: "Peak Physique",
+  name: "Peak Physique (PH-9 Predator)",
   category: "Armor",
   archetype: "Weapon Handling",
   source: "Viper Commandos",
   score: 6.5,
-  note: "[M] Reduced weapon drag — heavy supports (Autocannon, HMG) handle like lighter guns. Situational melee bonus."
+  note: "Reduced weapon drag — heavy supports (Autocannon, HMG) handle like lighter guns. Situational melee bonus."
 }, {
   id: "item-siegeready",
   grades: "A/A/S",
   sources: 2,
-  name: "Siege-Ready",
+  name: "Siege-Ready (SR-18 Roadblock)",
   category: "Armor",
   archetype: "Weapon Handling",
-  source: "Unconfirmed source — verify in-game",
+  source: "Urban Legends",
   score: 7.5,
-  note: "[M] +30% primary reload speed, +20% ammo capacity on non-backpack weapons. Great with the Purifier/Eruptor; wasted if your support weapon is Quasar (recharge-based, not reload-based)."
+  note: "+30% primary reload speed, +20% ammo capacity on non-backpack weapons. Great with the Purifier/Eruptor; wasted if your support weapon is Quasar (recharge-based, not reload-based)."
 }];
-const LOADOUT_CATEGORIES = ["Primary", "Secondary", "Throwable", "Armor"];
+const LOADOUT_CATEGORIES = ["Primary", "Secondary", "Throwable", "Armor", "Booster"];
 const CAT_COLOR_MAP = {
   Primary: "#f5c518",
   Secondary: "#38bdf8",
@@ -471,38 +469,110 @@ const CAT_COLOR_MAP = {
   Armor: "#4ade80",
   Booster: "#f472b6"
 };
+
+// Top 10 of 18 real boosters, picked for consistent all-mission value (the other 8 — Motivational
+// Shocks, Firebomb Hellpods, Dead Sprint, Armed Resupply Pods, Sample Extricator, Sample Scanner,
+// Stun Pods, Concealed Insertion — are real and situationally strong, just narrower use cases).
 const BOOSTER_ITEMS = [{
   id: "item-hso",
   grades: "S+/S+/S+",
   sources: 2,
   name: "Hellpod Space Optimization",
   category: "Booster",
+  archetype: "Logistics",
   source: "Helldivers Mobilize",
-  note: "[M] Full ammo/nades/stims every drop & reinforce."
+  score: 9.5,
+  note: "Full ammo/nades/stims every drop & reinforce. Page 3, 15 Medals."
 }, {
   id: "item-expinfusion",
   grades: "S+/S+/S+",
   sources: 2,
   name: "Experimental Infusion",
   category: "Booster",
+  archetype: "Survivability",
   source: "Viper Commandos",
-  note: "[M] Stims add +10% speed & dmg resist."
+  score: 9.0,
+  note: "Stims add +10% speed & dmg resist while active."
 }, {
   id: "item-stamina",
   grades: "S+/S+/S+",
   sources: 2,
   name: "Stamina Enhancement",
   category: "Booster",
+  archetype: "Mobility",
   source: "Helldivers Mobilize",
-  note: "[M] Longer sprint, faster regen — the kiting stat."
+  score: 8.8,
+  note: "Longer sprint, faster regen — the kiting stat. Page 7, 75 Medals."
 }, {
   id: "item-vitality",
   grades: "S/S/S",
   sources: 2,
   name: "Vitality Enhancement",
   category: "Booster",
+  archetype: "Survivability",
   source: "Helldivers Mobilize",
-  note: "[M] Flat damage reduction, all sources."
+  score: 8.5,
+  note: "Flat damage reduction, all sources. Page 4, 20 Medals."
+}, {
+  id: "item-muscle",
+  grades: "A/S/A",
+  sources: 1,
+  name: "Muscle Enhancement",
+  category: "Booster",
+  archetype: "Mobility",
+  source: "Helldivers Mobilize",
+  score: 7.0,
+  note: "Reduces movement slow from mud/snow/acid/foliage. Page 9, 70 Medals. Situational — strong on Hive Worlds, weak on flat/barren maps."
+}, {
+  id: "item-uavrecon",
+  grades: "B/B/B",
+  sources: 1,
+  name: "UAV Recon Booster",
+  category: "Booster",
+  archetype: "Logistics",
+  source: "Helldivers Mobilize",
+  score: 6.5,
+  note: "Increases effective radar range so enemy patrols show up on the map from farther away. Page 6, 40 Medals."
+}, {
+  id: "item-irb",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Increased Reinforcement Budget",
+  category: "Booster",
+  archetype: "Squad Reinforcements",
+  source: "Helldivers Mobilize",
+  score: 6.5,
+  note: "+1 reinforcement per squad member (5→6 solo, 20→24 full squad). Page 10, 150 Medals."
+}, {
+  id: "item-frb",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Flexible Reinforcement Budget",
+  category: "Booster",
+  archetype: "Squad Reinforcements",
+  source: "Steeled Veterans",
+  score: 6.0,
+  note: "Cuts the wait for new reinforcements once depleted by ~12s. Marginal in a full squad, genuinely useful solo where you only get 5 total lives. Page 3, 75 Medals."
+}, {
+  id: "item-locconf",
+  grades: "B/A/B",
+  sources: 1,
+  name: "Localization Confusion",
+  category: "Booster",
+  archetype: "Mission Timing",
+  source: "Cutting Edge",
+  score: 6.8,
+  note: "Increases time between enemy encounter calls (bug breaches/bot drops). Doesn't reduce reinforcement size, just delays the next one. Page 1, 18 Medals."
+}, {
+  id: "item-extractpilot",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Expert Extraction Pilot",
+  category: "Booster",
+  archetype: "Mission Timing",
+  source: "Democratic Detonation",
+  score: 6.2,
+  note: "Extraction shuttle arrives ~30% faster. Page 2, 55 Medals."
 }];
 const VEHICLE_ITEMS = [{
   id: "item-lumberer",
@@ -511,7 +581,7 @@ const VEHICLE_ITEMS = [{
   name: "EXO-51 Lumberer",
   category: "Vehicle",
   source: "Exo Experts",
-  note: "[H] High HP pool, 8-minute cooldown — strong if you rotate mechs into your loadout. Best vs bugs/mixed fronts."
+  note: "High HP pool, 8-minute cooldown — strong if you rotate mechs into your loadout. Best vs bugs/mixed fronts."
 }];
 
 // STRATAGEM_POOL: single composite score (blended coop+solo), `cat` doubles as the TYPE filter
@@ -525,7 +595,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy", "crowd-clear", "objective"],
   score: 9.4,
-  note: "[H] 6×1500 AT-III bombs. Closes holes/fabricators/light bases. Best all-axis pick, corroborated by 3+ independent sources."
+  note: "6×1500 AT-III bombs. Closes holes/fabricators/light bases. Best all-axis pick, corroborated by 3+ independent sources."
 }, {
   id: "eagle-110mm",
   grades: "S/S/S",
@@ -535,7 +605,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 8.0,
-  note: "[H] Heavy AP, auto-targets. [U] Community usage is low relative to its computed rating — worth field-testing before fully trusting it."
+  note: "Heavy AP, auto-targets. Community usage is low relative to its computed rating — worth field-testing before fully trusting it."
 }, {
   id: "eagle-500kg",
   grades: "S+/S+/A",
@@ -545,7 +615,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 6.0,
-  note: "Sportskeeda rates this SS-tier on raw peak damage. Our reliability-adjusted model scores it lower — 10m inner kill radius, ~4.5s delay, ~30% est. hit rate on a MOVING heavy [J]. Both are 'true': devastating when it lands, unreliable against anything mobile."
+  note: "Sportskeeda rates this SS-tier on raw peak damage. Our reliability-adjusted model scores it lower — 10m inner kill radius, ~4.5s delay, ~30% est. hit rate on a MOVING heavy. Both are 'true': devastating when it lands, unreliable against anything mobile."
 }, {
   id: "eagle-strafing",
   grades: "A/A/S",
@@ -575,7 +645,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["crowd-clear"],
   score: 5.8,
-  note: "[M] Sportskeeda B-tier. Scatter-pattern crowd clear — less precise than Airstrike, wider spread."
+  note: "Sportskeeda B-tier. Scatter-pattern crowd clear — less precise than Airstrike, wider spread."
 }, {
   id: "eagle-smoke",
   grades: "B/D/D",
@@ -595,7 +665,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy", "objective"],
   score: 9.1,
-  note: "[H] 90s base cooldown, 77s with modules. All-fronts core, corroborated by Switchblade, GAMES.GG, u.gg."
+  note: "90s base cooldown, 77s with modules. All-fronts core, corroborated by Switchblade, GAMES.GG, u.gg."
 }, {
   id: "orb-railcannon",
   grades: "S+/S+/A",
@@ -605,7 +675,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 6.5,
-  note: "[H] High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 179s cd caps real uptime [J]."
+  note: "High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 179s cd caps real uptime."
 }, {
   id: "orb-laser",
   grades: "S/S/S+",
@@ -675,7 +745,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["crowd-clear", "survivability"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier. Field-wide slow effect — turns a losing fight into a controlled retreat or a clean revive window."
+  note: "Sportskeeda S-tier. Field-wide slow effect — turns a losing fight into a controlled retreat or a clean revive window."
 }, {
   id: "sup-autocannon",
   grades: "S+/S+/S+",
@@ -686,7 +756,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["sustain", "anti-heavy", "objective"],
   score: 8.2,
-  note: "[M] S+/S+/S+ all-fronts. Especially strong co-op (reload-buddy negates its one downside) — solo it's still good, just not top-of-class. Own ammo backpack."
+  note: "S+/S+/S+ all-fronts. Especially strong co-op (reload-buddy negates its one downside) — solo it's still good, just not top-of-class. Own ammo backpack."
 }, {
   id: "sup-quasar",
   grades: "S/S/C",
@@ -708,7 +778,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy", "objective"],
   score: 6.8,
-  note: "[M] S+/S+/C. Own ammo backpack — solo reload is slow; shines with a teammate reloading you."
+  note: "S+/S+/C. Own ammo backpack — solo reload is slow; shines with a teammate reloading you."
 }, {
   id: "sup-eat",
   grades: "S/S/B",
@@ -724,24 +794,24 @@ const STRATAGEM_POOL = [{
   id: "sup-spear",
   grades: "S/S/B",
   sources: 1,
-  name: "RS-422 Spear",
+  name: "FAF-14 Spear",
   cat: "support",
   usesBackpack: true,
   source: "Free (base game)",
-  roles: ["anti-heavy", "objective", "crowd-clear"],
+  roles: ["anti-heavy", "objective"],
   score: 6.4,
-  note: "[M] Sportskeeda S-tier. Auto-lock anti-tank + gas cloud on impact. Own backpack; lock-on can be finicky solo."
+  note: "Sportskeeda S-tier. Auto-lock anti-tank homing missile — cannot be dumb-fired, and locks won't hold past 300m. Own backpack; lock-on can be finicky solo. Unlocked at the Patriotic Administration Center (Level 20, 9,000 Requisition)."
 }, {
   id: "sup-railgun",
   grades: "S+/S+/A",
   sources: 1,
-  name: "APW-1 Anti-Materiel Rifle",
+  name: "RS-422 Railgun",
   cat: "support",
   usesBackpack: false,
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 7.1,
-  note: "[M] Sportskeeda SS-tier. Precision charge-shot anti-armor, no backpack. High skill ceiling (overcharge risk)."
+  note: "Sportskeeda SS-tier. Precision charge-shot anti-armor, no backpack. High skill ceiling (overcharge risk)."
 }, {
   id: "sup-arc",
   grades: "C/S/S",
@@ -796,7 +866,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["sustain", "crowd-clear"],
   score: 5.8,
-  note: "[M] Sportskeeda B-tier. No ammo (heat-based like the Sickle), no backpack. Fell off after weapon-handling passives got easier to get elsewhere."
+  note: "Sportskeeda B-tier. No ammo (heat-based like the Sickle), no backpack. Fell off after weapon-handling passives got easier to get elsewhere."
 }, {
   id: "item-hotdog",
   grades: "C/S/S",
@@ -816,7 +886,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["survivability"],
   score: 7.8,
-  note: "[M] Sportskeeda SS-tier overall — near-unanimous 'best backpack' pick. Bots front specifically: blocks ranged volleys a drone can't answer."
+  note: "Sportskeeda SS-tier overall — near-unanimous 'best backpack' pick. Bots front specifically: blocks ranged volleys a drone can't answer."
 }, {
   id: "bp-supply",
   grades: "A/A/A",
@@ -846,7 +916,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["survivability"],
   score: 5.8,
-  note: "[M] Sportskeeda B-tier. Personal cover for pushing into Devastator/bot fire; loses a hand for one-handed weapons only."
+  note: "Sportskeeda B-tier. Personal cover for pushing into Devastator/bot fire; loses a hand for one-handed weapons only."
 }, {
   id: "bp-hellbomb",
   grades: "A/A/A",
@@ -856,7 +926,7 @@ const STRATAGEM_POOL = [{
   source: "Servants of Freedom",
   roles: ["anti-heavy", "objective"],
   score: 7.0,
-  note: "[M] Single massive detonation — bypasses jammers that block a called-in Hellbomb. High commitment, one-shot item."
+  note: "Single massive detonation — bypasses jammers that block a called-in Hellbomb. High commitment, one-shot item."
 }, {
   id: "sentry-ems",
   grades: "B/B/B",
@@ -876,7 +946,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["crowd-clear"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier. Regular (non-EMS) variant — raw damage over the area instead of a slow field. Friendly-fire risk if your squad pushes past it."
+  note: "Sportskeeda S-tier. Regular (non-EMS) variant — raw damage over the area instead of a slow field. Friendly-fire risk if your squad pushes past it."
 }, {
   id: "sentry-autocannon",
   grades: "S/S/S",
@@ -886,7 +956,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy", "crowd-clear"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier, corroborated by GAMES.GG. Handles medium armor at range while you're elsewhere on the objective."
+  note: "Sportskeeda S-tier, corroborated by GAMES.GG. Handles medium armor at range while you're elsewhere on the objective."
 }, {
   id: "sentry-rocket",
   grades: "S/S/S",
@@ -896,7 +966,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["anti-heavy"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier. Dedicated heavy-killer turret — pairs well as a second anti-tank answer on defense missions."
+  note: "Sportskeeda S-tier. Dedicated heavy-killer turret — pairs well as a second anti-tank answer on defense missions."
 }, {
   id: "sentry-tesla",
   grades: "S/S/S",
@@ -906,7 +976,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["crowd-clear"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier. Chain-arcs to nearby enemies automatically — no ammo, no reload, just uptime."
+  note: "Sportskeeda S-tier. Chain-arcs to nearby enemies automatically — no ammo, no reload, just uptime."
 }, {
   id: "sentry-mg",
   grades: "B/B/B",
@@ -916,7 +986,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["crowd-clear"],
   score: 5.8,
-  note: "[M] Sportskeeda B-tier. Cheapest sentry, outclassed by Autocannon/Rocket/Mortar variants once you have them unlocked."
+  note: "Sportskeeda B-tier. Cheapest sentry, outclassed by Autocannon/Rocket/Mortar variants once you have them unlocked."
 }, {
   id: "emp-antitank",
   grades: "S/S/S",
@@ -926,7 +996,7 @@ const STRATAGEM_POOL = [{
   source: "Urban Legends",
   roles: ["anti-heavy"],
   score: 8.0,
-  note: "[M] Stationary, destroys vehicles/buildings from safe distance — called S-tier defensive. Immobile, so best on a fixed line to hold."
+  note: "Stationary, destroys vehicles/buildings from safe distance — called S-tier defensive. Immobile, so best on a fixed line to hold."
 }, {
   id: "emp-shieldrelay",
   grades: "S/S/S",
@@ -936,7 +1006,7 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   roles: ["survivability"],
   score: 8.7,
-  note: "[M] Sportskeeda S-tier. Squad-wide stationary shield bubble — distinct from the personal Shield Generator Pack backpack."
+  note: "Sportskeeda S-tier. Squad-wide stationary shield bubble — distinct from the personal Shield Generator Pack backpack."
 }, {
   id: "sentry-flame",
   grades: "B/S/B",
@@ -958,157 +1028,236 @@ const STRATAGEM_POOL = [{
   score: 6.8,
   note: "Deployable mobile cover — blocks incoming fire from one direction, good for revives/reloads under fire."
 }];
-const SHIP_MODULES = [{
-  id: "m1",
-  label: "#1",
-  value: "PAC — Donation Access License",
-  note: "[M] Support weapon deploys max ammo · 60 common. Cheapest real effect in the game"
+const SHIP_MODULES = [
+// HANGAR — Eagle stratagems. Tiers must be bought in order within each category.
+{
+  id: "m-hangar-1",
+  priority: 2,
+  cat: "Hangar",
+  label: "Tier 1",
+  value: "Liquid-Ventilated Cockpit",
+  note: "Eagle cooldown −50% · 80 common"
 }, {
-  id: "m2",
-  label: "#2",
-  value: "Hangar — Liquid-Ventilated Cockpit",
-  note: "[H-MODEL] Only +5% Eagle throughput alone — REQUIRED STEP toward tiers 2-3 · 80c"
+  id: "m-hangar-2",
+  priority: 5,
+  cat: "Hangar",
+  label: "Tier 2",
+  value: "Pit Crew Hazard Pay",
+  note: "Eagle rearm −20% (150→120s) · 80c/40r"
 }, {
-  id: "m3",
-  label: "#3",
-  value: "Hangar — Pit Crew Hazard Pay",
-  note: "[H-MODEL] Rearm 150→120s = +24% Eagle throughput · 80c/40r"
+  id: "m-hangar-3",
+  priority: 8,
+  cat: "Hangar",
+  label: "Tier 3",
+  value: "Expanded Weapons Bay",
+  note: "+1 Eagle use per rearm — the single biggest throughput upgrade · 80c/80r/10s"
 }, {
-  id: "m4",
-  label: "#4",
-  value: "Hangar — Expanded Weapons Bay",
-  note: "[H-MODEL] +1 use/rearm = +42% throughput — THE single biggest upgrade · 80c/80r/10s"
+  id: "m-hangar-4",
+  priority: 16,
+  cat: "Hangar",
+  label: "Tier 4",
+  value: "XXL Weapons Bay",
+  note: "Multi-bomb Eagles (Airstrike) drop +1 bomb · 150c/150r/15s/25k req"
 }, {
-  id: "m5",
-  label: "#5",
-  value: "Bridge — Targeting Software Upgrade",
-  note: "[M] Orbital call-in −1s · 60c"
+  id: "m-hangar-5",
+  priority: 22,
+  cat: "Hangar",
+  label: "Tier 5",
+  value: "Advanced Crew Training",
+  note: "Eagle rearm −10% further (120→105s) · 200c/250r/25s/30k req"
+},
+// PATRIOTIC ADMINISTRATION CENTER (PAC) — Support weapon stratagems.
+{
+  id: "m-pac-1",
+  priority: 1,
+  cat: "Patriotic Administration Center",
+  label: "Tier 1",
+  value: "Donation Access License",
+  note: "Support weapon deploys with max carriable ammo · 60 common"
 }, {
-  id: "m6",
-  label: "#6",
-  value: "Orbital — Exploding Shrapnel",
-  note: "[M] Less orbital damage falloff · 100c"
+  id: "m-pac-2",
+  priority: 6,
+  cat: "Patriotic Administration Center",
+  label: "Tier 2",
+  value: "Streamlined Request Process",
+  note: "Support weapon cooldown −10% · 80c/40r"
 }, {
-  id: "m7",
-  label: "#7",
-  value: "PAC — Streamlined Request Process",
-  note: "[M] Support weapon cd −10% · 80c/40r"
+  id: "m-pac-3",
+  priority: 12,
+  cat: "Patriotic Administration Center",
+  label: "Tier 3",
+  value: "Hand Carts",
+  note: "Backpack stratagem cooldown −10% · 80c/60r/5s"
 }, {
-  id: "m8",
-  label: "#8",
-  value: "Orbital — More Guns",
-  note: "[M] Buffs Gatling Barrage; stepping stone otherwise · 80c/60r"
+  id: "m-pac-4",
+  priority: 18,
+  cat: "Patriotic Administration Center",
+  label: "Tier 4",
+  value: "Superior Packing Methodology",
+  note: "Resupply boxes fully refill support weapons — requires Hand Carts first · 150c/150r/15s/20k req"
 }, {
-  id: "m9",
-  label: "#9",
-  value: "Orbital — Zero-G Breech Loading",
-  note: "[H] Orbital cd −10% (OPS 90→77s) · 80c/80r/10s"
+  id: "m-pac-5",
+  priority: 24,
+  cat: "Patriotic Administration Center",
+  label: "Tier 5",
+  value: "Payroll Management System",
+  note: "Support weapon reload speed −10% · 200c/200r/20s/30k req"
+},
+// ORBITAL CANNONS — Orbital stratagems.
+{
+  id: "m-orb-1",
+  priority: 3,
+  cat: "Orbital Cannons",
+  label: "Tier 1",
+  value: "Exploding Shrapnel",
+  note: "Reduces orbital damage falloff from blast center · 100 common"
 }, {
-  id: "m10",
-  label: "#10",
-  value: "Hangar — Advanced Crew Training",
-  note: "[H-MODEL] Rearm 120→105s; full chain = +106% vs stock · 200c/250r/25s/30k"
+  id: "m-orb-2",
+  priority: 9,
+  cat: "Orbital Cannons",
+  label: "Tier 2",
+  value: "More Guns",
+  note: "Barrage orbitals (Gatling, Walking, 120mm, 380mm) fire +1 salvo · 80c/60r"
 }, {
-  id: "m11",
-  label: "#11",
-  value: "Hangar — XXL Weapons Bay",
-  note: "[M] Airstrike drops 7th bomb · 150c/150r/15s/25k"
+  id: "m-orb-3",
+  priority: 7,
+  cat: "Orbital Cannons",
+  label: "Tier 3",
+  value: "Zero-G Breech Loading",
+  note: "Orbital cooldown −10% (OPS 90→77s) · 80c/80r/10s"
 }, {
-  id: "m12",
-  label: "#12",
-  value: "PAC — Hand Carts",
-  note: "[M] Backpack cd −10% · 80c/60r/5s"
+  id: "m-orb-4",
+  priority: 21,
+  cat: "Orbital Cannons",
+  label: "Tier 4",
+  value: "Atmospheric Monitoring",
+  note: "Reduces dispersion radius of 120mm/380mm HE Barrages by 15% · 200c/150r/15s/25k req"
 }, {
-  id: "m13",
-  label: "#13",
-  value: "Bridge — Nuclear Radar",
-  note: "Stepping stone · 80c/40r"
+  id: "m-orb-5",
+  priority: 27,
+  cat: "Orbital Cannons",
+  label: "Tier 5",
+  value: "High-Density Explosives",
+  note: "Orbital explosion radius +10% · 250c/200r/20s/35k req"
+},
+// BRIDGE — General/utility, touches multiple stratagem types.
+{
+  id: "m-bridge-1",
+  priority: 4,
+  cat: "Bridge",
+  label: "Tier 1",
+  value: "Targeting Software Upgrade",
+  note: "Orbital call-in time −1s (all 11 Orbital stratagems) · 60 common"
 }, {
-  id: "m14",
-  label: "#14",
-  value: "PAC — Superior Packing Methodology",
-  note: "[M] Resupply fully refills support weapons — REQUIRES Hand Carts first · 150c/150r/15s/20k"
+  id: "m-bridge-2",
+  priority: 13,
+  cat: "Bridge",
+  label: "Tier 2",
+  value: "Nuclear Radar",
+  note: "Enemy ping radius on minimap +50m · 80c/40r"
 }, {
-  id: "m15",
-  label: "#15",
-  value: "Bridge — Power Steering",
-  note: "Stepping stone · 80c/80r/10s"
+  id: "m-bridge-3",
+  priority: 17,
+  cat: "Bridge",
+  label: "Tier 3",
+  value: "Power Steering",
+  note: "Improves Hellpod steering during (re)deployment · 80c/80r/10s"
 }, {
-  id: "m16",
-  label: "#16",
-  value: "PAC — Payroll Management System",
-  note: "[M] Support reload −10% · 200c/200r/20s/30k"
+  id: "m-bridge-4",
+  priority: 23,
+  cat: "Bridge",
+  label: "Tier 4",
+  value: "Enhanced Combustion",
+  note: "Fire damage from stratagems +25% · 200c/150r/15s/25k req"
 }, {
-  id: "m17",
-  label: "#17",
-  value: "Orbital — Atmospheric Monitoring",
-  note: "Stepping stone · 200c/150r/15s/25k"
+  id: "m-bridge-5",
+  priority: 28,
+  cat: "Bridge",
+  label: "Tier 5",
+  value: "Morale Augmentation",
+  note: "All stratagem cooldowns −5% · 250c/200r/20s/35k req"
+},
+// ENGINEERING BAY — Sentry/Emplacement stratagems.
+{
+  id: "m-engbay-1",
+  priority: 10,
+  cat: "Engineering Bay",
+  label: "Tier 1",
+  value: "Synthetic Supplementation",
+  note: "Sentry/Emplacement/Resupply cooldown −10% · 60c/10r"
 }, {
-  id: "m18",
-  label: "#18",
-  value: "Orbital — High-Density Explosives",
-  note: "[M] Orbital radius +10% · 250c/200r/20s/35k"
+  id: "m-engbay-2",
+  priority: 15,
+  cat: "Engineering Bay",
+  label: "Tier 2",
+  value: "Advanced Construction",
+  note: "Sentry health +50% — requires Synthetic Supplementation first · 80c/60r/5s"
 }, {
-  id: "m19",
-  label: "#19",
-  value: "Bridge — Enhanced Combustion",
-  note: "Stepping stone · 200c/150r/15s/25k"
+  id: "m-engbay-3",
+  priority: 20,
+  cat: "Engineering Bay",
+  label: "Tier 3",
+  value: "Rapid Launch System",
+  note: "Removes deployment time for Emplacements (Shield Relay, Tesla Tower, HMG Emplacement, mines) · 80c/80r/10s"
 }, {
-  id: "m20",
-  label: "#20",
-  value: "Bridge — Morale Augmentation",
-  note: "[M] All stratagem cds −5% · 250c/200r/20s/35k"
+  id: "m-engbay-4",
+  priority: 26,
+  cat: "Engineering Bay",
+  label: "Tier 4",
+  value: "Circuit Expansion",
+  note: "Lightning arcs (Arc Thrower, Tesla Tower) jump to +1 additional enemy · 200c/150r/20s/20k req"
 }, {
-  id: "m21",
-  label: "#21",
-  value: "Eng. Bay — Synthetic Supplementation",
-  note: "[M] −10% cd for Sentry/Emplacement/Resupply · 60c/10r. Matters more now — you run several sentries"
+  id: "m-engbay-5",
+  priority: 30,
+  cat: "Engineering Bay",
+  label: "Tier 5",
+  value: "Streamlined Launch Process",
+  note: "Support Weapon stratagems launch immediately once called in — roughly a 3-second reduction to call-in time."
+},
+// ROBOTICS WORKSHOP — Sentry/Emplacement stratagems (second tree, works alongside Engineering Bay).
+{
+  id: "m-robo-1",
+  priority: 11,
+  cat: "Robotics Workshop",
+  label: "Tier 1",
+  value: "Dynamic Tracking",
+  note: "Faster Sentry deployment time · 60c/20r"
 }, {
-  id: "m22",
-  label: "#22",
-  value: "Robotics — Dynamic Tracking",
-  note: "[M] Faster Sentry deployment · 60c/20r"
+  id: "m-robo-2",
+  priority: 14,
+  cat: "Robotics Workshop",
+  label: "Tier 2",
+  value: "Shock Absorption Gel",
+  note: "Sentry ammo capacity +50% · 80c/40r/5s"
 }, {
-  id: "m23",
-  label: "#23",
-  value: "Eng. Bay — Advanced Construction",
-  note: "[M] +50% Sentry health — REQUIRES Synthetic Supplementation · 80c/60r/5s"
+  id: "m-robo-3",
+  priority: 19,
+  cat: "Robotics Workshop",
+  label: "Tier 3",
+  value: "High-Quality Lubricant",
+  note: "Sentries rotate to new targets faster · 80c/80r/10s"
 }, {
-  id: "m24",
-  label: "#24",
-  value: "Robotics — Shock Absorbing Gel",
-  note: "[M] +50% Sentry ammo · 80c/40r/5s"
+  id: "m-robo-4",
+  priority: 25,
+  cat: "Robotics Workshop",
+  label: "Tier 4",
+  value: "Blast Absorption",
+  note: "Sentries take 50% less explosive damage · 150c/150r/20s"
 }, {
-  id: "m25",
-  label: "#25",
-  value: "Eng. Bay — Rapid Launch System",
-  note: "[M] Removes deployment time for Emplacements · 80c/80r/10s"
-}, {
-  id: "m26",
-  label: "#26",
-  value: "Robotics — High-Quality Lubricant",
-  note: "[M] Sentries rotate to new targets faster · 80c/80r/10s"
-}, {
-  id: "m27",
-  label: "#27",
-  value: "Eng. Bay — Circuit Expansion",
-  note: "[M] Lightning arcs (Arc/Tesla) jump to +1 enemy · ~150c/150r/20s"
-}, {
-  id: "m28",
-  label: "#28",
-  value: "Robotics — Explosion Absorption",
-  note: "[M] Sentries take 50% less explosive damage · 150c/150r/20s"
-}, {
-  id: "m29",
-  label: "#29",
-  value: "Eng. Bay — Tier 5 (name unconfirmed)",
-  note: "Exact tier-5 name/effect not reliably sourced across guides — treat as lowest priority until confirmed in-game"
-}, {
-  id: "m30",
-  label: "#30",
-  value: "Robotics — Cross-Platform Compatibility",
-  note: "Confirmed to exist, but exact effect wasn't consistently described across sources — verify in-game before prioritizing"
+  id: "m-robo-5",
+  priority: 29,
+  cat: "Robotics Workshop",
+  label: "Tier 5",
+  value: "Cross-Platform Compatibility",
+  note: "Mortar sentries (A/M-12, EMS, Gas) prioritize fire at pinged targets, out to their full 125m range even without line of sight. Only your own ping counts, not allies'"
 }];
+const MODULE_CATEGORIES = ["Patriotic Administration Center", "Orbital Cannons", "Hangar", "Bridge", "Engineering Bay", "Robotics Workshop"];
+
+// SHIP_MODULES is authored grouped-by-category, but NOT in the in-game category order that
+// MODULE_CATEGORIES defines. Both the Ship Modules tab and the MY UNLOCKS checklist render from
+// this ordered view so the two lists always scroll in the same sequence. The trailing concat is
+// a safety net: a module whose `cat` isn't in MODULE_CATEGORIES still renders instead of vanishing.
+const SHIP_MODULES_ORDERED = [...MODULE_CATEGORIES.flatMap(cat => SHIP_MODULES.filter(m => m.cat === cat)), ...SHIP_MODULES.filter(m => !MODULE_CATEGORIES.includes(m.cat))];
 const TAB_ORDER = ["unlocks", "loadout", "stratagems", "warbonds", "modules"];
 const TAB_LABELS = {
   unlocks: "MY UNLOCKS",
@@ -1117,6 +1266,15 @@ const TAB_LABELS = {
   warbonds: "WARBOND TARGETS",
   modules: "SHIP MODULES"
 };
+// Global UI scale. Every element is drawn with hardcoded px sizes, so instead of rewriting several
+// hundred inline fontSize/padding/gap values (and risking the layout math), the whole app is scaled
+// with CSS zoom. zoom reflows the layout properly — unlike transform: scale, which would leave the
+// original footprint behind and clip or overflow. Bigger = more scrolling, nothing cut off.
+// Change this one number to resize everything; 1 is the original size.
+const UI_SCALE = 1.5;
+// zoom scales viewport units too, so a literal 100vh would become 150vh of mostly-empty scroll.
+// Divide it back out so the app still fills exactly one screen and no more.
+const FULL_HEIGHT = `calc(100vh / ${UI_SCALE})`;
 const TAB_COLORS = {
   unlocks: "#22c55e",
   loadout: "#f5c518",
@@ -1148,7 +1306,7 @@ const WARBOND_TIER = {
   "Truth Enforcers": 3,
   "Python Commandos": 3,
   "Force of Law": 3,
-  "Superstore (rotating)": 4
+  "Superstore": 4
 };
 const LETTER_VALUES = {
   "S+": 9.5,
@@ -1164,6 +1322,9 @@ const ENEMY_INDEX = {
   Bugs: 1,
   Squids: 2
 };
+
+// All 23 live Warbonds, confirmed via helldivers.wiki.gg (Category:Warbonds, Jul 2026).
+const ALL_WARBONDS = ["Helldivers Mobilize", "Polar Patriots", "Cutting Edge", "Steeled Veterans", "Democratic Detonation", "Viper Commandos", "Freedom's Flame", "Chemical Agents", "Truth Enforcers", "Urban Legends", "Servants of Freedom", "Borderline Justice", "Masters of Ceremony", "Force of Law", "Control Group", "Dust Devils", "Python Commandos", "Redacted Regiment", "Siege Breakers", "Entrenched Division", "Exo Experts", "Righteous Revenants", "Obedient Democracy Support Troopers"];
 function getFactionLetter(item, enemy) {
   if (!enemy || !item.grades) return null;
   const parts = item.grades.split("/").map(s => s.trim());
@@ -1173,6 +1334,18 @@ function getFactionScore(item, enemy) {
   const letter = getFactionLetter(item, enemy);
   if (!letter) return item.score;
   return LETTER_VALUES[letter] ?? item.score;
+}
+
+// Achievability tiers for Armor recommendations, personalized to what the player has already
+// unlocked: an item from a Warbond they own (0) > Free Warbond (1) > a Paid Warbond they don't
+// have yet (2) > Superstore (3, costs Super Credits, least reliable). This is a starting suggestion for
+// people who haven't picked yet — not a rule. If you already have a favorite set with the same
+// passive, just check it off in MY UNLOCKS instead.
+function getSourceTier(item, unlockedWarbonds) {
+  if (isWarbondUnlocked(item, unlockedWarbonds) && !item.source.startsWith("Helldivers Mobilize") && !item.source.startsWith("Superstore")) return 0;
+  if (item.source.startsWith("Helldivers Mobilize")) return 1;
+  if (item.source.startsWith("Superstore")) return 3;
+  return 2;
 }
 function GradeBadge({
   grades,
@@ -1232,6 +1405,19 @@ function TabIntro({
 }
 function warbondBaseName(source) {
   return source.split(" — ")[0].trim();
+}
+
+// Must be an exact match, NOT startsWith("Free") — "Freedom's Flame" is a paid Warbond that
+// also starts with "Free", and a prefix test silently treats every item in it as already owned.
+function isFreeSource(source) {
+  return warbondBaseName(source) === "Free (base game)";
+}
+
+// Free/base-game items are always "unlocked" by definition (no Warbond gates them).
+// For everything else, check the toggle set in MY UNLOCKS.
+function isWarbondUnlocked(item, unlockedWarbonds) {
+  if (isFreeSource(item.source)) return true;
+  return !!unlockedWarbonds[warbondBaseName(item.source)];
 }
 function itemPriority(item) {
   if (typeof item.score === "number") return item.score;
@@ -1296,6 +1482,7 @@ function getEligibleStratPool(pool, selected) {
 }
 function App() {
   const [owned, setOwned] = useState({});
+  const [unlockedWarbonds, setUnlockedWarbonds] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState("unlocks");
   const [slots, setSlots] = useState([null, null, null, null]);
@@ -1318,16 +1505,23 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = localStorage.getItem("hd2-owned");
-        if (raw) {
-          const p = JSON.parse(raw);
+        const r = await window.storage.get("hd2-owned");
+        if (r?.value) {
+          const p = JSON.parse(r.value);
           if (p && typeof p === "object" && !Array.isArray(p)) setOwned(p);
         }
       } catch {}
       try {
-        const raw2 = localStorage.getItem("hd2-strat-slots");
-        if (raw2) {
-          const parsed = JSON.parse(raw2);
+        const rw = await window.storage.get("hd2-warbonds");
+        if (rw?.value) {
+          const p = JSON.parse(rw.value);
+          if (p && typeof p === "object" && !Array.isArray(p)) setUnlockedWarbonds(p);
+        }
+      } catch {}
+      try {
+        const r2 = await window.storage.get("hd2-strat-slots");
+        if (r2?.value) {
+          const parsed = JSON.parse(r2.value);
           if (Array.isArray(parsed) && parsed.length === 4) {
             setSlots(parsed);
           } else if (parsed && Array.isArray(parsed.coop)) {
@@ -1339,9 +1533,9 @@ function App() {
         }
       } catch {}
       try {
-        const raw3 = localStorage.getItem("hd2-loadout-picks");
-        if (raw3) {
-          const parsed = JSON.parse(raw3);
+        const r3 = await window.storage.get("hd2-loadout-picks");
+        if (r3?.value) {
+          const parsed = JSON.parse(r3.value);
           const isFlat = parsed && typeof parsed === "object" && !("coop" in parsed) && !("solo" in parsed);
           if (isFlat) {
             setLoadoutPicks(parsed);
@@ -1363,19 +1557,33 @@ function App() {
     };
     setOwned(next);
     try {
-      localStorage.setItem("hd2-owned", JSON.stringify(next));
+      await window.storage.set("hd2-owned", JSON.stringify(next));
+    } catch {}
+  };
+  const toggleWarbond = async name => {
+    const next = {
+      ...unlockedWarbonds,
+      [name]: !unlockedWarbonds[name]
+    };
+    setUnlockedWarbonds(next);
+    try {
+      await window.storage.set("hd2-warbonds", JSON.stringify(next));
     } catch {}
   };
   const resetAll = async () => {
     setOwned({});
+    setUnlockedWarbonds({});
     try {
-      localStorage.setItem("hd2-owned", JSON.stringify({}));
+      await window.storage.set("hd2-owned", JSON.stringify({}));
+    } catch {}
+    try {
+      await window.storage.set("hd2-warbonds", JSON.stringify({}));
     } catch {}
   };
   const saveSlots = async next => {
     setSlots(next);
     try {
-      localStorage.setItem("hd2-strat-slots", JSON.stringify(next));
+      await window.storage.set("hd2-strat-slots", JSON.stringify(next));
     } catch {}
   };
   const pickSlot = (idx, item) => {
@@ -1392,7 +1600,7 @@ function App() {
   const saveLoadoutPicks = async next => {
     setLoadoutPicks(next);
     try {
-      localStorage.setItem("hd2-loadout-picks", JSON.stringify(next));
+      await window.storage.set("hd2-loadout-picks", JSON.stringify(next));
     } catch {}
   };
   const pickLoadout = (category, item) => {
@@ -1415,8 +1623,9 @@ function App() {
   const pct = Math.round(total / ALL_OWNABLE_IDS.length * 100);
   if (!loaded) return /*#__PURE__*/React.createElement("div", {
     style: {
+      zoom: UI_SCALE,
       background: "#080b12",
-      minHeight: "100vh",
+      minHeight: FULL_HEIGHT,
       display: "flex",
       alignItems: "center",
       justifyContent: "center"
@@ -1431,8 +1640,9 @@ function App() {
   }, "LOADING..."));
   return /*#__PURE__*/React.createElement("div", {
     style: {
+      zoom: UI_SCALE,
       background: "#080b12",
-      minHeight: "100vh",
+      minHeight: FULL_HEIGHT,
       fontFamily: "'Courier New', Courier, monospace",
       color: "#e2e8f0",
       padding: "20px 14px",
@@ -1531,7 +1741,9 @@ function App() {
     }, TAB_LABELS[tid]);
   }))), activeTab === "unlocks" && /*#__PURE__*/React.createElement(UnlocksTab, {
     owned: owned,
-    toggleOwned: toggleOwned
+    toggleOwned: toggleOwned,
+    unlockedWarbonds: unlockedWarbonds,
+    toggleWarbond: toggleWarbond
   }), activeTab === "loadout" && /*#__PURE__*/React.createElement(LoadoutBuilder, {
     picks: loadoutPicks,
     pickLoadout: pickLoadout,
@@ -1542,7 +1754,8 @@ function App() {
     archFilter: loadoutArchFilter,
     setArchFilter: setArchFilter,
     enemy: enemy,
-    setEnemy: setEnemy
+    setEnemy: setEnemy,
+    unlockedWarbonds: unlockedWarbonds
   }), activeTab === "stratagems" && /*#__PURE__*/React.createElement(StratagemBuilder, {
     slots: slots,
     pickSlot: pickSlot,
@@ -1555,9 +1768,11 @@ function App() {
     typeFilter: slotTypeFilter,
     setTypeFilter: setSlotFilter,
     enemy: enemy,
-    setEnemy: setEnemy
+    setEnemy: setEnemy,
+    unlockedWarbonds: unlockedWarbonds
   }), activeTab === "warbonds" && /*#__PURE__*/React.createElement(WarbondTargetsTab, {
-    owned: owned
+    owned: owned,
+    unlockedWarbonds: unlockedWarbonds
   }), activeTab === "modules" && /*#__PURE__*/React.createElement(ShipModulesTab, {
     owned: owned
   }), /*#__PURE__*/React.createElement("div", {
@@ -1616,7 +1831,9 @@ function App() {
 }
 function UnlocksTab({
   owned,
-  toggleOwned
+  toggleOwned,
+  unlockedWarbonds,
+  toggleWarbond
 }) {
   const all = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS, ...STRATAGEM_POOL];
   const grouped = {};
@@ -1624,10 +1841,82 @@ function UnlocksTab({
     const src = warbondBaseName(item.source || "Free (base game)");
     (grouped[src] = grouped[src] || []).push(item);
   });
+  const warbondsOwnedCount = ALL_WARBONDS.filter(w => unlockedWarbonds[w]).length;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
-    items: ["Check off everything you actually own — this is the ONLY place ownership is set.", "Loadout, Stratagems, Warbond Targets, and Ship Modules all read from this list.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
-  }), Object.entries(grouped).map(([source, items]) => {
+    items: ["Check off everything you actually own — this is the ONLY place ownership is set.", "Loadout, Stratagems, Warbond Targets, and Ship Modules all read from this list.", "Mark which Warbonds you've unlocked below — Loadout and Stratagems suggestions rank items from your Warbonds above items from ones you don't have yet.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#f472b6",
+      textTransform: "uppercase"
+    }
+  }, "Warbonds You Own"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#475569"
+    }
+  }, warbondsOwnedCount, "/", ALL_WARBONDS.length)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+      gap: 6
+    }
+  }, ALL_WARBONDS.map(name => {
+    const on = !!unlockedWarbonds[name];
+    return /*#__PURE__*/React.createElement("div", {
+      key: name,
+      onClick: () => toggleWarbond(name),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "7px 10px",
+        background: on ? "#0f1a12" : "#0d1117",
+        border: `1px solid ${on ? "#1a3a20" : "#1e2a3a"}`,
+        borderRadius: 6,
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 14,
+        height: 14,
+        borderRadius: 3,
+        flexShrink: 0,
+        border: `2px solid ${on ? "#22c55e" : "#334155"}`,
+        background: on ? "#22c55e" : "transparent",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, on && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#000",
+        fontSize: 9,
+        fontWeight: 900
+      }
+    }, "✓")), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: on ? "#475569" : "#e2e8f0",
+        textDecoration: on ? "line-through" : "none"
+      }
+    }, name));
+  }))), Object.entries(grouped).map(([source, items]) => {
     const ownedCount = items.filter(i => owned[i.id]).length;
+    const groupUnlocked = isFreeSource(source) ? true : !!unlockedWarbonds[source];
     return /*#__PURE__*/React.createElement("div", {
       key: source,
       style: {
@@ -1653,11 +1942,18 @@ function UnlocksTab({
         fontSize: 9,
         color: ownedCount === items.length ? "#22c55e" : "#475569"
       }
-    }, ownedCount, "/", items.length)), /*#__PURE__*/React.createElement("div", {
+    }, ownedCount, "/", items.length), !groupUnlocked && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 8,
+        color: "#78350f",
+        marginLeft: "auto"
+      }
+    }, "Warbond not marked unlocked above")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         flexDirection: "column",
-        gap: 6
+        gap: 6,
+        opacity: groupUnlocked ? 1 : 0.4
       }
     }, items.map(item => /*#__PURE__*/React.createElement("div", {
       key: item.id,
@@ -1730,7 +2026,7 @@ function UnlocksTab({
       flexDirection: "column",
       gap: 6
     }
-  }, SHIP_MODULES.map(item => /*#__PURE__*/React.createElement("div", {
+  }, SHIP_MODULES_ORDERED.map(item => /*#__PURE__*/React.createElement("div", {
     key: item.id,
     onClick: () => toggleOwned(item.id),
     style: {
@@ -1779,7 +2075,8 @@ function LoadoutBuilder({
   archFilter,
   setArchFilter,
   enemy,
-  setEnemy
+  setEnemy,
+  unlockedWarbonds
 }) {
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1817,7 +2114,7 @@ function LoadoutBuilder({
       textTransform: "uppercase"
     }
   }, "CLEAR")), /*#__PURE__*/React.createElement(TabIntro, {
-    items: ["Four independent slots, one blended list — no Co-op/Solo split. Owned items rank first automatically.", "Use the Style dropdown per category to browse one weapon/armor archetype at a time.", "Pick an Enemy below to reorder everything by that faction's specific grade instead of the blended score.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
+    items: ["Four independent slots, one blended list — no Co-op/Solo split. Owned items rank first automatically.", "Use the Style dropdown per category to browse one weapon/armor archetype at a time.", "For Armor specifically: when 2+ sets share the same passive, the one flagged QUICKEST TO GET is just the fastest path to that perk given the Warbonds you've already unlocked (then free, then unowned Warbonds, then Superstore) — not a hard rule. Already have a favorite set with the same perk? Just check it off in MY UNLOCKS instead.", "Pick an Enemy below to reorder everything by that faction's specific grade instead of the blended score.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -1855,16 +2152,40 @@ function LoadoutBuilder({
       color: "#475569"
     }
   }, "Reordering by ", enemy, "-specific grade")), LOADOUT_CATEGORIES.map(category => {
-    const picked = picks[category] ? LOADOUT_POOL.find(p => p.id === picks[category]) : null;
+    const fullPool = [...LOADOUT_POOL, ...BOOSTER_ITEMS];
+    const picked = picks[category] ? fullPool.find(p => p.id === picks[category]) : null;
     const color = CAT_COLOR_MAP[category];
-    const archetypes = [...new Set(LOADOUT_POOL.filter(p => p.category === category).map(p => p.archetype))];
+    const archetypes = [...new Set(fullPool.filter(p => p.category === category).map(p => p.archetype))];
     const currentFilter = archFilter[category];
-    const candidates = LOADOUT_POOL.filter(p => p.category === category).filter(p => !currentFilter || p.archetype === currentFilter).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).sort((a, b) => {
+    const effectiveEnemy = category === "Booster" ? "" : enemy; // boosters aren't faction-differentiated
+    const candidates = fullPool.filter(p => p.category === category).filter(p => !currentFilter || p.archetype === currentFilter).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).sort((a, b) => {
       const aOwned = owned[a.id] ? 1 : 0,
         bOwned = owned[b.id] ? 1 : 0;
       if (aOwned !== bOwned) return bOwned - aOwned;
-      return getFactionScore(b, enemy) - getFactionScore(a, enemy);
+      const aUnlocked = isWarbondUnlocked(a, unlockedWarbonds) ? 1 : 0,
+        bUnlocked = isWarbondUnlocked(b, unlockedWarbonds) ? 1 : 0;
+      if (aUnlocked !== bUnlocked) return bUnlocked - aUnlocked;
+      if (category === "Armor") {
+        const tierDiff = getSourceTier(a, unlockedWarbonds) - getSourceTier(b, unlockedWarbonds);
+        if (tierDiff !== 0) return tierDiff; // most achievable first, regardless of combat score
+      }
+      return getFactionScore(b, effectiveEnemy) - getFactionScore(a, effectiveEnemy);
     });
+    // For Armor, flag the single most-achievable option within EACH archetype group as the
+    // recommended starting point when there's a real choice — free Warbond beats paid beats Superstore.
+    const recommendedIds = category !== "Armor" ? new Set() : (() => {
+      const archGroups = {};
+      fullPool.filter(p => p.category === "Armor").forEach(p => {
+        (archGroups[p.archetype] = archGroups[p.archetype] || []).push(p);
+      });
+      const ids = new Set();
+      Object.values(archGroups).forEach(group => {
+        if (group.length < 2) return; // only meaningful when there's an actual choice
+        const best = [...group].sort((a, b) => getSourceTier(a, unlockedWarbonds) - getSourceTier(b, unlockedWarbonds))[0];
+        ids.add(best.id);
+      });
+      return ids;
+    })();
     return /*#__PURE__*/React.createElement("div", {
       key: category,
       style: {
@@ -1956,13 +2277,21 @@ function LoadoutBuilder({
       }, item.name), /*#__PURE__*/React.createElement(GradeBadge, {
         grades: item.grades,
         sources: item.sources,
-        enemy: enemy
+        enemy: effectiveEnemy
       }), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 8,
           color: "#475569"
         }
-      }, item.archetype)), /*#__PURE__*/React.createElement("div", {
+      }, item.archetype), recommendedIds.has(item.id) && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 8,
+          color: "#22c55e",
+          fontWeight: 700,
+          letterSpacing: 0.5
+        },
+        title: "Quickest path to this perk given the Warbonds you've already unlocked — not a hard rule"
+      }, "QUICKEST TO GET")), /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 9,
           color: "#475569",
@@ -2001,9 +2330,10 @@ function LoadoutBuilder({
   }));
 }
 function WarbondTargetsTab({
-  owned
+  owned,
+  unlockedWarbonds
 }) {
-  const items = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS].filter(i => !i.source.startsWith("Free"));
+  const items = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS].filter(i => !isFreeSource(i.source));
   // Fixed order — same approach as Ship Modules: sort once by (Warbond tier, then item value)
   // and leave it there. Ownership just changes the icon/strikethrough, not the position —
   // scroll to find what's left rather than watching the list reshuffle under you.
@@ -2013,9 +2343,10 @@ function WarbondTargetsTab({
     if (tierA !== tierB) return tierA - tierB;
     return itemPriority(b) - itemPriority(a);
   });
-  const nextIdx = sorted.findIndex(i => !owned[i.id]);
+  const availableItems = sorted.filter(i => !owned[i.id] && isWarbondUnlocked(i, unlockedWarbonds));
+  const nextIdx = sorted.findIndex(i => i.id === availableItems[0]?.id);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
-    items: ["Fixed priority order, same approach as Ship Modules — the list doesn't reshuffle as you check things off.", "Sorted Warbond value first, then item value within that Warbond.", "Warbond name shown in parentheses next to each item.", "Free/base-game items live in MY UNLOCKS instead — nothing to buy for those."]
+    items: ["Fixed priority order, same approach as Ship Modules — the list doesn't reshuffle as you check things off.", "Sorted Warbond value first, then item value within that Warbond.", "Greyed out = Warbond not marked unlocked in MY UNLOCKS yet — not actually available to you right now.", "Free/base-game items live in MY UNLOCKS instead — nothing to buy for those."]
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2025,6 +2356,8 @@ function WarbondTargetsTab({
   }, sorted.map((item, idx) => {
     const warbond = warbondBaseName(item.source);
     const isNext = idx === nextIdx;
+    const unlocked = isWarbondUnlocked(item, unlockedWarbonds);
+    const locked = !owned[item.id] && !unlocked;
     return /*#__PURE__*/React.createElement("div", {
       key: item.id,
       style: {
@@ -2035,7 +2368,7 @@ function WarbondTargetsTab({
         background: isNext ? "#1a1206" : "#0d1117",
         border: `1px solid ${isNext ? "#f59e0b" : owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
         borderRadius: 6,
-        opacity: owned[item.id] ? 0.5 : 1
+        opacity: owned[item.id] ? 0.5 : locked ? 0.35 : 1
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2089,7 +2422,12 @@ function WarbondTargetsTab({
         color: "#f59e0b",
         fontWeight: 700
       }
-    }, "GET NEXT")), /*#__PURE__*/React.createElement("div", {
+    }, "GET NEXT"), locked && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#78350f"
+      }
+    }, "Warbond not unlocked")), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10,
         color: "#475569",
@@ -2101,88 +2439,125 @@ function WarbondTargetsTab({
 function ShipModulesTab({
   owned
 }) {
-  const nextIdx = SHIP_MODULES.findIndex(m => !owned[m.id]);
+  // Single global recommendation: for each category, the first unowned tier is the only
+  // possible "next" purchase there (tiers are sequential). Among those candidates across all
+  // 6 categories, the one with the lowest `priority` number is THE recommendation — not one
+  // per category.
+  const candidateNextPerCategory = MODULE_CATEGORIES.map(cat => {
+    const items = SHIP_MODULES.filter(m => m.cat === cat);
+    return items.find(m => !owned[m.id]) || null;
+  }).filter(Boolean);
+  const globalNext = candidateNextPerCategory.sort((a, b) => a.priority - b.priority)[0] || null;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
-    items: ["All 30 modules across all 6 categories (Hangar/PAC/Orbital/Bridge/Eng. Bay/Robotics).", "Tiers within each category must be purchased in sequence — no skipping ahead.", "BUY NEXT flags the next unowned module in line.", "Ownership set in MY UNLOCKS."]
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 6
-    }
-  }, SHIP_MODULES.map((item, idx) => {
-    const isNext = idx === nextIdx;
-    const warn = item.note?.startsWith("Stepping stone");
+    items: ["Organized by actual in-game structure — 6 sections, 5 tiers each, matching Ship Management.", "Tiers within each section must be purchased in sequence — no skipping ahead.", "BUY NEXT flags a single recommendation across all 30 modules, not one per section.", "Ownership set in MY UNLOCKS."]
+  }), MODULE_CATEGORIES.map(cat => {
+    const items = SHIP_MODULES.filter(m => m.cat === cat);
+    const ownedCount = items.filter(m => owned[m.id]).length;
     return /*#__PURE__*/React.createElement("div", {
-      key: item.id,
+      key: cat,
       style: {
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        padding: "10px 14px",
-        background: isNext ? "#1a1206" : owned[item.id] ? "#0f1a12" : "#0d1117",
-        border: `1px solid ${isNext ? "#f59e0b" : owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
-        borderRadius: 6,
-        opacity: owned[item.id] ? 0.6 : 1
+        marginBottom: 20
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        width: 16,
-        height: 16,
-        borderRadius: 3,
-        flexShrink: 0,
-        marginTop: 2,
-        border: `2px solid ${owned[item.id] ? "#22c55e" : isNext ? "#f59e0b" : "#334155"}`,
-        background: owned[item.id] ? "#22c55e" : "transparent",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center"
-      }
-    }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#000",
-        fontSize: 10,
-        fontWeight: 900
-      }
-    }, "✓")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1,
-        minWidth: 0
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "baseline",
         gap: 8,
-        flexWrap: "wrap"
+        marginBottom: 8
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 9,
-        letterSpacing: 2,
-        color: "#475569"
-      }
-    }, item.label), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#e2e8f0",
-        textDecoration: owned[item.id] ? "line-through" : "none"
-      }
-    }, item.value), isNext && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        color: "#f59e0b",
-        fontWeight: 700
-      }
-    }, "BUY NEXT")), /*#__PURE__*/React.createElement("div", {
-      style: {
         fontSize: 10,
-        color: warn ? "#78350f" : "#475569",
-        marginTop: 2
+        fontWeight: 700,
+        letterSpacing: 2,
+        color: "#a78bfa",
+        textTransform: "uppercase"
       }
-    }, item.note)));
-  })));
+    }, cat), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: ownedCount === items.length ? "#22c55e" : "#475569"
+      }
+    }, ownedCount, "/", items.length)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 6
+      }
+    }, items.map(item => {
+      const isNext = globalNext?.id === item.id;
+      const warn = item.note?.startsWith("Exists but") || item.note?.startsWith("Confirmed to exist");
+      return /*#__PURE__*/React.createElement("div", {
+        key: item.id,
+        style: {
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 12,
+          padding: "10px 14px",
+          background: isNext ? "#1a1206" : owned[item.id] ? "#0f1a12" : "#0d1117",
+          border: `1px solid ${isNext ? "#f59e0b" : owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
+          borderRadius: 6,
+          opacity: owned[item.id] ? 0.6 : 1
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 16,
+          height: 16,
+          borderRadius: 3,
+          flexShrink: 0,
+          marginTop: 2,
+          border: `2px solid ${owned[item.id] ? "#22c55e" : isNext ? "#f59e0b" : "#334155"}`,
+          background: owned[item.id] ? "#22c55e" : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }
+      }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: "#000",
+          fontSize: 10,
+          fontWeight: 900
+        }
+      }, "✓")), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          flexWrap: "wrap"
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 9,
+          letterSpacing: 2,
+          color: "#475569"
+        }
+      }, item.label), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#e2e8f0",
+          textDecoration: owned[item.id] ? "line-through" : "none"
+        }
+      }, item.value), isNext && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 9,
+          color: "#f59e0b",
+          fontWeight: 700
+        }
+      }, "BUY NEXT")), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10,
+          color: warn ? "#78350f" : "#475569",
+          marginTop: 2
+        }
+      }, item.note)));
+    })));
+  }));
 }
 function StratagemBuilder({
   slots,
@@ -2196,7 +2571,8 @@ function StratagemBuilder({
   typeFilter,
   setTypeFilter,
   enemy,
-  setEnemy
+  setEnemy,
+  unlockedWarbonds
 }) {
   const selectedItems = slots.map(id => id ? pool.find(p => p.id === id) : null);
   const filledItems = selectedItems.filter(Boolean);
@@ -2209,6 +2585,9 @@ function StratagemBuilder({
     const aOwned = owned[a.item.id] ? 1 : 0;
     const bOwned = owned[b.item.id] ? 1 : 0;
     if (aOwned !== bOwned) return bOwned - aOwned;
+    const aUnlocked = isWarbondUnlocked(a.item, unlockedWarbonds) ? 1 : 0;
+    const bUnlocked = isWarbondUnlocked(b.item, unlockedWarbonds) ? 1 : 0;
+    if (aUnlocked !== bUnlocked) return bUnlocked - aUnlocked;
     return b.score - a.score;
   });
   const supportTaken = filledItems.some(s => s.cat === "support");
@@ -2509,9 +2888,15 @@ function StratagemBuilder({
   }, "No matches — try clearing the filter."))));
 }
 
-  document.getElementById("load-status").style.display = "none";
   var root = ReactDOM.createRoot(document.getElementById("root"));
   root.render(React.createElement(App));
+  // Both other removals of #load-status are on failure paths (the window error handler and the
+  // React-didn't-load branch), so without this the "Loading..." line survives a successful mount
+  // and just sits above the app forever. rAF so it clears after React has painted, not before.
+  requestAnimationFrame(function () {
+    var status = document.getElementById("load-status");
+    if (status) status.style.display = "none";
+  });
 }
 </script>
 </body>
