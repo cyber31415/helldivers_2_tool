@@ -1,0 +1,2518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helldiver Field Manual</title>
+<style>
+  body { margin: 0; background: #080b12; font-family: 'Courier New', monospace; }
+  #load-status { color: #f5c518; padding: 24px; font-size: 14px; }
+  #error-box { display: none; color: #f87171; padding: 24px; white-space: pre-wrap; font-size: 12px; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="load-status">Loading...</div>
+<div id="error-box"></div>
+<div id="root"></div>
+<script>
+  // Visible error reporting: if anything below throws, show it on the page instead
+  // of leaving a silent blank screen.
+  window.addEventListener("error", function (e) {
+    document.getElementById("load-status").style.display = "none";
+    var box = document.getElementById("error-box");
+    box.style.display = "block";
+    box.textContent = "Something failed to load:\n\n" + (e.error ? (e.error.stack || e.error.message) : e.message) +
+      "\n\nIf this mentions React or ReactDOM being undefined, the CDN scripts above didn't load " +
+      "(check your internet connection or an ad-blocker/content-blocker on this page). " +
+      "Opening this file directly (double-click) can also behave differently from viewing it on a real " +
+      "web server like GitHub Pages - try GitHub Pages if double-clicking doesn't work.";
+  });
+</script>
+<script>
+if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
+  document.getElementById("load-status").style.display = "none";
+  document.getElementById("error-box").style.display = "block";
+  document.getElementById("error-box").textContent =
+    "React failed to load from the CDN. Check your internet connection, or try opening this page " +
+    "through GitHub Pages instead of double-clicking the file directly.";
+} else {
+  var useState = React.useState, useEffect = React.useEffect;
+
+// ARCHITECTURE: "MY UNLOCKS" is the ONE tab with checkboxes. Loadout and Stratagems are each a
+// single blended list — no Co-op/Solo split — since a solo-viable pick is generally fine in
+// co-op too; any mode-specific nuance lives in the item's note rather than a separate score.
+// Both have an archetype/type filter dropdown so you can browse a specific category side-by-side
+// rather than only seeing the top overall pick for a slot.
+//
+// CONFIDENCE SYSTEM: [H] hard number (patch notes/wiki fact)   [U] unverified in field
+// Grade confidence is a `sources` count (how many named independent sources back that grade),
+// displayed as a colored badge: green (2+ Sources) = genuinely corroborated, yellow (1 Source)
+// = single reference, orange (Calculated Rating Only) = derived from real specs/mechanics with
+// no tier-list backing found. Standardized grade scale, single letter + optional "+": S+ S A+ A
+// B+ B C+ C D — no double letters.
+//
+// SOURCE-INDEPENDENCE RULE: a source only counts if it's not derivative of another one already
+// counted — a site that scrapes its numbers from another tier list and republishes them isn't
+// a second opinion. A single very old, unmaintained forum post ranking weapons is excluded
+// entirely, since it contradicts current data on several items. Zero-source (orange) items are
+// a genuine data-availability limit for some picks (niche, very new content), not a reluctance
+// to look further.
+//
+// Composite conversion where sources gave letter grades: S+=9.5 S=8.7 A=7.3 B=5.8 C=4.3 D=3.0.
+// Where sources actively conflict (e.g. a raw community tier vs. this guide's reliability/
+// cooldown-adjusted model for the 500kg/Railcannon), the conflict is written into the item's
+// note rather than silently resolved in either direction.
+const LOADOUT_POOL = [
+// PRIMARY
+{
+  id: "item-purifier",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "PLAS-101 Purifier",
+  category: "Primary",
+  archetype: "Energy-Based",
+  source: "Polar Patriots",
+  score: 9.5,
+  note: "[M] #1 on GamesRadar (Jun 10), u.gg, LFCarry (Jul 14). [H] Cannot close holes/fabricators (plasma) — covered by Autocannon + Airstrike + OPS."
+}, {
+  id: "item-scorcher",
+  grades: "B/S/B",
+  sources: 1,
+  name: "PLAS-1 Scorcher",
+  category: "Primary",
+  archetype: "Energy-Based",
+  source: "Free (base game)",
+  score: 7.0,
+  note: "[M] \"One of the most trusted weapons in the game, especially against Automatons\" (FandomWire Mar 2026). Explosive splash, decent all-rounder if you don't have the Purifier yet."
+}, {
+  id: "item-coyote",
+  grades: "A/S+/S+",
+  sources: 0,
+  name: "AR-2 Coyote",
+  category: "Primary",
+  archetype: "Assault Rifle",
+  source: "Dust Devils",
+  score: 8.5,
+  note: "[M+field] Bugs/Squids — sustained volume, zero charge discipline. Field-tested ammo economy while kiting."
+}, {
+  id: "item-eruptor",
+  grades: "S/A/A",
+  sources: 0,
+  name: "R-36 Eruptor",
+  category: "Primary",
+  archetype: "Explosive",
+  source: "Democratic Detonation",
+  score: 8.3,
+  note: "[M] Bots — closes holes/fabricators, heavy AP, siege tempo. Bolt-action, low ammo — pairs with Talon for CQC."
+}, {
+  id: "item-dominator",
+  grades: "B/B/B",
+  sources: 0,
+  name: "JAR-5 Dominator",
+  category: "Primary",
+  archetype: "Explosive",
+  source: "Free (base game)",
+  score: 6.0,
+  note: "Battle-rifle-weight explosive rounds, slower handling. Community consensus is solid-but-unspectacular — a fine pick, not a standout."
+}, {
+  id: "item-sickle",
+  grades: "S/S/S",
+  sources: 2,
+  name: "LAS-16 Sickle",
+  category: "Primary",
+  archetype: "Assault Rifle",
+  source: "Cutting Edge",
+  score: 8.0,
+  note: "[M] Solid all-fronts assault rifle; several Entrenched Division weapons currently edge it out for the top primary slot. Heat-based, infinite ammo via mag swaps."
+}, {
+  id: "item-stoker",
+  grades: "A/S+/S+",
+  sources: 0,
+  name: "SMG/FLAM-34 Stoker",
+  category: "Primary",
+  archetype: "SMG",
+  source: "Entrenched Division",
+  score: 8.8,
+  note: "[M] Bugs/Squids — 780 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot."
+}, {
+  id: "item-m7s",
+  grades: "C/C/C",
+  sources: 1,
+  name: "M7S SMG",
+  category: "Primary",
+  archetype: "SMG",
+  source: "Free (base game)",
+  score: 5.0,
+  note: "[M] \"Usable, but mostly unremarkable\" (FandomWire Mar 2026) — fits stealth/mobility builds, no strong reason to pick over the Stoker otherwise."
+}, {
+  id: "item-cookout",
+  grades: "B/S+/A",
+  sources: 0,
+  name: "SG-451 Cookout",
+  category: "Primary",
+  archetype: "Shotgun",
+  source: "Freedom's Flame",
+  score: 7.5,
+  note: "[M] Bugs/Squids — pump-action incendiary shotgun. Fire-vulnerable Terminid roster makes this hit harder than raw numbers suggest."
+}, {
+  id: "item-breakerie",
+  grades: "C/S/A",
+  sources: 0,
+  name: "SG-225IE Breaker Incendiary",
+  category: "Primary",
+  archetype: "Shotgun",
+  source: "Free (base game)",
+  score: 7.2,
+  note: "[M] Long-standing top anti-bug pick — fire DoT plus spread makes it excellent on Terminid-heavy sessions specifically."
+}, {
+  id: "item-censor",
+  grades: "S/B/B",
+  sources: 1,
+  name: "R-72 Censor",
+  category: "Primary",
+  archetype: "Marksman/Sniper",
+  source: "Redacted Regiment",
+  score: 7.3,
+  note: "[M] Bots — suppressed stealth marksman rifle, 20-rd mag, 10x scope. Silent kills keep patrols from converging. Light AP, low velocity."
+}, {
+  id: "item-diligencecs",
+  grades: "A/B/B",
+  sources: 0,
+  name: "R-63CS Diligence Counter Sniper",
+  category: "Primary",
+  archetype: "Marksman/Sniper",
+  source: "Free (base game)",
+  score: 6.8,
+  note: "Standard-issue DMR reputation — high per-shot damage, no stealth gimmick, works well the moment you unlock it."
+},
+// SECONDARY
+{
+  id: "item-talon",
+  grades: "S/S/S+",
+  sources: 3,
+  name: "LAS-58 Talon",
+  category: "Secondary",
+  archetype: "Energy/CQC Backup",
+  source: "Borderline Justice",
+  score: 9.0,
+  note: "[M] A secondary is a BACKUP GUN — heat-based, never dry, covers CQC when primary is empty/charging."
+}, {
+  id: "item-loyalist",
+  grades: "B/B/A",
+  sources: 1,
+  name: "PLAS-15 Loyalist",
+  category: "Secondary",
+  archetype: "Energy/CQC Backup",
+  source: "Free (base game)",
+  score: 6.0,
+  note: "[M] \"Pocket Purifier\" characterization independently corroborated by Febspot (Mar 2026). Charge-up plasma pistol — riskier than the Talon since charging exposes you, but hits harder per shot."
+}, {
+  id: "item-gp31",
+  grades: "S/S/S",
+  sources: 2,
+  name: "GP-31 Grenade Pistol",
+  category: "Secondary",
+  archetype: "Utility",
+  source: "Democratic Detonation",
+  score: 7.0,
+  note: "[M] Dedicated objective-closer — saves Autocannon rounds & Eagle uses on hole-dense missions."
+}, {
+  id: "item-stimpistol",
+  grades: "B/B/B",
+  sources: 0,
+  name: "P-11 Stim Pistol",
+  category: "Secondary",
+  archetype: "Utility",
+  source: "Free (base game)",
+  score: 5.8,
+  note: "Heals a downed/injured squadmate from range without a revive animation. Pure coop utility — low value solo."
+}, {
+  id: "item-ultimatum",
+  grades: "S+/S+/A",
+  sources: 2,
+  name: "GP-20 Ultimatum",
+  category: "Secondary",
+  archetype: "Anti-Tank",
+  source: "Servants of Freedom",
+  score: 7.8,
+  note: "[M] AP6 pocket anti-tank panic button."
+}, {
+  id: "item-missilepistol",
+  grades: "A/A/A",
+  sources: 1,
+  name: "P-33 Missile Pistol",
+  category: "Secondary",
+  archetype: "Anti-Tank",
+  source: "Exo Experts",
+  score: 6.5,
+  note: "[M] GamesRadar (May 7, 2026): \"a pretty solid sidearm, particularly against the bots.\" Second anti-tank sidearm option, bundled with the Exo Experts mech content."
+}, {
+  id: "item-senator",
+  grades: "S+/S/A",
+  sources: 2,
+  name: "P-4 Senator",
+  category: "Secondary",
+  archetype: "Heavy Hitter",
+  source: "Steeled Veterans",
+  score: 7.6,
+  note: "[M] Bots — heavy-AP revolver, small cylinder, slow reload, hits hard enough to finish priority targets."
+}, {
+  id: "item-verdict",
+  grades: "B/B/B",
+  sources: 0,
+  name: "P-113 Verdict",
+  category: "Secondary",
+  archetype: "Heavy Hitter",
+  source: "Redacted Regiment",
+  score: 6.2,
+  note: "Source confirmed via propelrc.com (Apr 2026) — heavy semi-auto pistol, explosive rounds, good burst finishing power. Grade itself stays [J]: found its source, not yet an independent performance ranking."
+}, {
+  id: "item-deadeye",
+  grades: "B/B/B",
+  sources: 0,
+  name: "R-6 Deadeye",
+  category: "Secondary",
+  archetype: "Precision",
+  source: "Borderline Justice",
+  score: 6.8,
+  note: "[M] Lever-action rifle secondary — high per-shot damage, slow follow-up."
+}, {
+  id: "item-warrant",
+  grades: "B/B/A",
+  sources: 0,
+  name: "P-92 Warrant",
+  category: "Secondary",
+  archetype: "Precision",
+  source: "Superstore (rotating)",
+  score: 6.0,
+  note: "Gyrojet pistol, homing rounds, no damage falloff — more forgiving on aim than the Deadeye, but rotation-gated."
+},
+// THROWABLE
+{
+  id: "item-thermite",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "G-123 Thermite",
+  category: "Throwable",
+  archetype: "Anti-Armor",
+  source: "Democratic Detonation",
+  score: 9.5,
+  note: "[M] Sticks + kills heavies. Carries 3 — lower capacity than some newer grenades, but unmatched per-throw value."
+}, {
+  id: "item-stun",
+  grades: "S/S/S",
+  sources: 3,
+  name: "G-23 Stun",
+  category: "Throwable",
+  archetype: "Crowd Control",
+  source: "Free (base game)",
+  score: 8.0,
+  note: "[M] Independently corroborated as a top crowd-control pick by mein-mmo.de, game-rezone.com, and FandomWire (all 2026). [H] Carries 4 (5 max). Converts a ~30% manual hit into ~95% paired with OPS/500kg [J]."
+}, {
+  id: "item-gas-nade",
+  grades: "C/S/S",
+  sources: 2,
+  name: "G-4 Gas",
+  category: "Throwable",
+  archetype: "Crowd Control",
+  source: "Chemical Agents",
+  score: 6.5,
+  note: "[M] Blind/confuse effect corroborated by u.gg and FandomWire. Bugs/Squids — confusion cloud on breaches/drops, wide radius. Weak vs bots (mechanical) — this specific caveat is my own inference [J], not independently sourced."
+}, {
+  id: "item-impact",
+  grades: "S/B/B",
+  sources: 2,
+  name: "G-16 Impact",
+  category: "Throwable",
+  archetype: "Anti-Armor",
+  source: "Free (base game)",
+  score: 7.0,
+  note: "[M] Independently corroborated by mein-mmo.de and game-rezone.com as a recommended precision pick. Bots — no fuse, detonates on contact. Best for fortifications and trench clusters."
+}, {
+  id: "item-incendiary-nade",
+  grades: "B/S/B",
+  sources: 0,
+  name: "G-10 Incendiary",
+  category: "Throwable",
+  archetype: "Crowd Control",
+  source: "Free (base game)",
+  score: 6.3,
+  note: "Bugs — area denial via fire pool. Teamkill risk in tight spots."
+},
+// ARMOR
+{
+  id: "item-medkit-medium",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "Med-Kit (Medium class)",
+  category: "Armor",
+  archetype: "Survivability",
+  source: "Helldivers Mobilize — e.g. CM-09 Bonesnapper",
+  score: 9.0,
+  note: "[M] +2 stims, +2s duration. Medium for bot fronts where ranged fire is unavoidable."
+}, {
+  id: "item-medkit-light",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "Med-Kit (Light class)",
+  category: "Armor",
+  archetype: "Survivability",
+  source: "Superstore (rotating) — e.g. CM-21 Trench Paramedic",
+  score: 9.0,
+  note: "[M] Same passive, Light class — built for solo kiting where stims are your only heal, but a fully legitimate coop pick too if you'd rather prioritize mobility over the team-buffered survivability of Medium."
+}, {
+  id: "item-engkit",
+  grades: "S/S/S",
+  sources: 2,
+  name: "Engineering Kit",
+  category: "Armor",
+  archetype: "Utility",
+  source: "Helldivers Mobilize — e.g. CE-35 Trench Engineer",
+  score: 7.5,
+  note: "[M] +2 throwables = 5 Thermites. −30% crouch recoil."
+}, {
+  id: "item-demprotects",
+  grades: "A/A/A",
+  sources: 2,
+  name: "Democracy Protects (DP-40)",
+  category: "Armor",
+  archetype: "Survive Lethal Hits",
+  source: "Helldivers Mobilize — DP-40 Hero of the Federation",
+  score: 8.0,
+  note: "[M] 50% chance to survive a lethal hit + no bleed damage. Medium class, free."
+}, {
+  id: "item-adrenodef",
+  grades: "B/B/B",
+  sources: 0,
+  name: "Adreno-Defibrillator",
+  category: "Armor",
+  archetype: "Survive Lethal Hits",
+  source: "Unconfirmed source — verify in-game",
+  score: 5.8,
+  note: "Auto-revives you if your body is still intact, with a timed second death shortly after — a window to get to cover or be revived properly, not a full save."
+}, {
+  id: "item-fortified",
+  grades: "A/B/A",
+  sources: 1,
+  name: "Fortified (FS-55 Devastator)",
+  category: "Armor",
+  archetype: "Damage Resistance",
+  source: "Democratic Detonation",
+  score: 7.8,
+  note: "[M] Heavy — 30% recoil reduction crouched/prone + 50% explosive resistance. Best if you crouch-fire and call stratagems aggressively."
+}, {
+  id: "item-inflammable",
+  grades: "B/S+/B",
+  sources: 1,
+  name: "Inflammable (I-09 Heatseeker)",
+  category: "Armor",
+  archetype: "Damage Resistance",
+  source: "Freedom's Flame",
+  score: 6.5,
+  note: "[M] 75% fire resistance, Light class. The counterpart to Fortified — pick based on which damage type is actually hurting you, explosive (bots/mines) or fire (your own flamethrower splash, bug fire attacks)."
+}, {
+  id: "item-servoassisted",
+  grades: "C/C/C",
+  sources: 0,
+  name: "Servo-Assisted (SA-25 Steel Trooper)",
+  category: "Armor",
+  archetype: "Utility",
+  source: "Steeled Veterans",
+  score: 6.5,
+  note: "Servo-Assisted passive: +50% limb health, +30% throw range. Medium class."
+}, {
+  id: "item-scout",
+  grades: "A/A/A",
+  sources: 1,
+  name: "Scout",
+  category: "Armor",
+  archetype: "Mobility/Stealth",
+  source: "Helldivers Mobilize",
+  score: 7.0,
+  note: "[M] Reduced detection range + radar pings from placed markers. Bypass fights instead of starting them — strong on objective-heavy missions."
+}, {
+  id: "item-reducedsig",
+  grades: "A/A/A",
+  sources: 0,
+  name: "Reduced Signature",
+  category: "Armor",
+  archetype: "Mobility/Stealth",
+  source: "Unconfirmed source — verify in-game",
+  score: 6.8,
+  note: "Similar detection-reduction effect to Scout on a different armor set — genuinely close in function, pick whichever set's stats you prefer."
+}, {
+  id: "item-peakphysique",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Peak Physique",
+  category: "Armor",
+  archetype: "Weapon Handling",
+  source: "Viper Commandos",
+  score: 6.5,
+  note: "[M] Reduced weapon drag — heavy supports (Autocannon, HMG) handle like lighter guns. Situational melee bonus."
+}, {
+  id: "item-siegeready",
+  grades: "A/A/S",
+  sources: 2,
+  name: "Siege-Ready",
+  category: "Armor",
+  archetype: "Weapon Handling",
+  source: "Unconfirmed source — verify in-game",
+  score: 7.5,
+  note: "[M] +30% primary reload speed, +20% ammo capacity on non-backpack weapons. Great with the Purifier/Eruptor; wasted if your support weapon is Quasar (recharge-based, not reload-based)."
+}];
+const LOADOUT_CATEGORIES = ["Primary", "Secondary", "Throwable", "Armor"];
+const CAT_COLOR_MAP = {
+  Primary: "#f5c518",
+  Secondary: "#38bdf8",
+  Throwable: "#fb923c",
+  Armor: "#4ade80",
+  Booster: "#f472b6"
+};
+const BOOSTER_ITEMS = [{
+  id: "item-hso",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "Hellpod Space Optimization",
+  category: "Booster",
+  source: "Helldivers Mobilize",
+  note: "[M] Full ammo/nades/stims every drop & reinforce."
+}, {
+  id: "item-expinfusion",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "Experimental Infusion",
+  category: "Booster",
+  source: "Viper Commandos",
+  note: "[M] Stims add +10% speed & dmg resist."
+}, {
+  id: "item-stamina",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "Stamina Enhancement",
+  category: "Booster",
+  source: "Helldivers Mobilize",
+  note: "[M] Longer sprint, faster regen — the kiting stat."
+}, {
+  id: "item-vitality",
+  grades: "S/S/S",
+  sources: 2,
+  name: "Vitality Enhancement",
+  category: "Booster",
+  source: "Helldivers Mobilize",
+  note: "[M] Flat damage reduction, all sources."
+}];
+const VEHICLE_ITEMS = [{
+  id: "item-lumberer",
+  grades: "A/S/A",
+  sources: 0,
+  name: "EXO-51 Lumberer",
+  category: "Vehicle",
+  source: "Exo Experts",
+  note: "[H] High HP pool, 8-minute cooldown — strong if you rotate mechs into your loadout. Best vs bugs/mixed fronts."
+}];
+
+// STRATAGEM_POOL: single composite score (blended coop+solo), `cat` doubles as the TYPE filter
+// value (eagle/orbital/support/backpack/sentry). `source` gates ownership. Nearly all free.
+const STRATAGEM_POOL = [{
+  id: "eagle-airstrike",
+  grades: "S+/S+/S+",
+  sources: 3,
+  name: "Eagle Airstrike",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["anti-heavy", "crowd-clear", "objective"],
+  score: 9.4,
+  note: "[H] 6×1500 AT-III bombs. Closes holes/fabricators/light bases. Best all-axis pick, corroborated by 3+ independent sources."
+}, {
+  id: "eagle-110mm",
+  grades: "S/S/S",
+  sources: 0,
+  name: "Eagle 110mm Rocket Pods",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 8.0,
+  note: "[H] Heavy AP, auto-targets. [U] Community usage is low relative to its computed rating — worth field-testing before fully trusting it."
+}, {
+  id: "eagle-500kg",
+  grades: "S+/S+/A",
+  sources: 1,
+  name: "Eagle 500kg Bomb",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 6.0,
+  note: "Sportskeeda rates this SS-tier on raw peak damage. Our reliability-adjusted model scores it lower — 10m inner kill radius, ~4.5s delay, ~30% est. hit rate on a MOVING heavy [J]. Both are 'true': devastating when it lands, unreliable against anything mobile."
+}, {
+  id: "eagle-strafing",
+  grades: "A/A/S",
+  sources: 0,
+  name: "Eagle Strafing Run",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["anti-heavy", "crowd-clear"],
+  score: 6.5,
+  note: "AT-I penetration. Doesn't alert enemies — best vs Illuminate."
+}, {
+  id: "eagle-napalm",
+  grades: "C/S/S",
+  sources: 0,
+  name: "Eagle Napalm Airstrike",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 6.7,
+  note: "Fire line, panics organics. Weak vs bots (fire-resistant machines)."
+}, {
+  id: "eagle-cluster",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Eagle Cluster Bomb",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 5.8,
+  note: "[M] Sportskeeda B-tier. Scatter-pattern crowd clear — less precise than Airstrike, wider spread."
+}, {
+  id: "eagle-smoke",
+  grades: "B/D/D",
+  sources: 1,
+  name: "Eagle Smoke Strike",
+  cat: "eagle",
+  source: "Free (base game)",
+  roles: ["utility"],
+  score: 4.5,
+  note: "Mixed reviews — one source calls it near-useless ('obscures vision uselessly'), Sportskeeda has it B-tier. Splitting the difference; treat as low-priority niche pick for breaking enemy line-of-sight during a revive/extract."
+}, {
+  id: "orb-ops",
+  grades: "S+/S+/S+",
+  sources: 3,
+  name: "Orbital Precision Strike",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["anti-heavy", "objective"],
+  score: 9.1,
+  note: "[H] 90s base cooldown, 77s with modules. All-fronts core, corroborated by Switchblade, GAMES.GG, u.gg."
+}, {
+  id: "orb-railcannon",
+  grades: "S+/S+/A",
+  sources: 1,
+  name: "Orbital Railcannon Strike",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 6.5,
+  note: "[H] High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 179s cd caps real uptime [J]."
+}, {
+  id: "orb-laser",
+  grades: "S/S/S+",
+  sources: 2,
+  name: "Orbital Laser",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["anti-heavy", "crowd-clear", "objective"],
+  score: 8.6,
+  note: "3 uses/mission — panic button, all-fronts. Tracks slow vs fast swarms."
+}, {
+  id: "orb-gatling",
+  grades: "S/S/A",
+  sources: 0,
+  name: "Orbital Gatling Barrage",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 7.4,
+  note: "70s cd sustained shredder. Weakest vs squids."
+}, {
+  id: "orb-airburst",
+  grades: "B/B/B",
+  sources: 0,
+  name: "Orbital Airburst Strike",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 6.0,
+  note: "100s cd, zero heavy-armor effect — pure breach plug."
+}, {
+  id: "orb-gas",
+  grades: "D/S/S",
+  sources: 1,
+  name: "Orbital Gas Strike",
+  cat: "orbital",
+  source: "Chemical Agents",
+  roles: ["crowd-clear"],
+  score: 5.0,
+  note: "Near-useless vs bots (mechanical). Fine vs bugs/squids."
+}, {
+  id: "orb-120mm",
+  grades: "B/B/B",
+  sources: 0,
+  name: "Orbital 120mm HE Barrage",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["crowd-clear", "objective"],
+  score: 6.5,
+  note: "Wide saturation barrage, great on bases/outposts. High FF risk."
+}, {
+  id: "orb-380mm",
+  grades: "A/B/A",
+  sources: 1,
+  name: "Orbital 380mm HE Barrage",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["crowd-clear", "objective", "anti-heavy"],
+  score: 6.7,
+  note: "Biggest barrage in the game. Sportskeeda B-tier (friendly-fire risk weighed heavily); still devastating on a called-out target. Long cd."
+}, {
+  id: "orb-ems",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Orbital EMS Strike",
+  cat: "orbital",
+  source: "Free (base game)",
+  roles: ["crowd-clear", "survivability"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier. Field-wide slow effect — turns a losing fight into a controlled retreat or a clean revive window."
+}, {
+  id: "sup-autocannon",
+  grades: "S+/S+/S+",
+  sources: 2,
+  name: "AC-8 Autocannon",
+  cat: "support",
+  usesBackpack: true,
+  source: "Free (base game)",
+  roles: ["sustain", "anti-heavy", "objective"],
+  score: 8.2,
+  note: "[M] S+/S+/S+ all-fronts. Especially strong co-op (reload-buddy negates its one downside) — solo it's still good, just not top-of-class. Own ammo backpack."
+}, {
+  id: "sup-quasar",
+  grades: "S/S/C",
+  sources: 2,
+  name: "Quasar Cannon",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["sustain", "anti-heavy", "objective"],
+  score: 8.2,
+  note: "No backpack, no reload — shines especially solo. Weakest vs squids."
+}, {
+  id: "sup-recoilless",
+  grades: "S+/S+/C",
+  sources: 1,
+  name: "GR-8 Recoilless Rifle",
+  cat: "support",
+  usesBackpack: true,
+  source: "Free (base game)",
+  roles: ["anti-heavy", "objective"],
+  score: 6.8,
+  note: "[M] S+/S+/C. Own ammo backpack — solo reload is slow; shines with a teammate reloading you."
+}, {
+  id: "sup-eat",
+  grades: "S/S/B",
+  sources: 0,
+  name: "EAT-17 Expendable Anti-Tank",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 7.6,
+  note: "Disposable, fast recall, no backpack cost — good while learning anti-tank timing."
+}, {
+  id: "sup-spear",
+  grades: "S/S/B",
+  sources: 1,
+  name: "RS-422 Spear",
+  cat: "support",
+  usesBackpack: true,
+  source: "Free (base game)",
+  roles: ["anti-heavy", "objective", "crowd-clear"],
+  score: 6.4,
+  note: "[M] Sportskeeda S-tier. Auto-lock anti-tank + gas cloud on impact. Own backpack; lock-on can be finicky solo."
+}, {
+  id: "sup-railgun",
+  grades: "S+/S+/A",
+  sources: 1,
+  name: "APW-1 Railgun",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 7.1,
+  note: "[M] Sportskeeda SS-tier. Precision charge-shot anti-armor, no backpack. High skill ceiling (overcharge risk)."
+}, {
+  id: "sup-arc",
+  grades: "C/S/S",
+  sources: 0,
+  name: "ARC-3 Arc Thrower",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["crowd-clear", "sustain"],
+  score: 6.4,
+  note: "Chain-lightning crowd control, no backpack. Weak vs bots (long engagement range)."
+}, {
+  id: "sup-flamethrower",
+  grades: "C/S+/S+",
+  sources: 0,
+  name: "FLAM-40 Flamethrower",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["crowd-clear", "sustain"],
+  score: 6.7,
+  note: "Panic + DoT vs organics, no backpack. Weak/self-risk vs bots."
+}, {
+  id: "sup-mg",
+  grades: "C/C/C",
+  sources: 0,
+  name: "MG-43 Machine Gun",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["sustain", "crowd-clear"],
+  score: 5.4,
+  note: "Light sustained suppression, no backpack. Outclassed at high difficulty."
+}, {
+  id: "sup-gl",
+  grades: "B/B/B",
+  sources: 0,
+  name: "GL-21 Grenade Launcher",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["crowd-clear", "objective"],
+  score: 6.7,
+  note: "Closes holes/fabricators from range, no backpack."
+}, {
+  id: "sup-lasercannon",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Laser Cannon",
+  cat: "support",
+  usesBackpack: false,
+  source: "Free (base game)",
+  roles: ["sustain", "crowd-clear"],
+  score: 5.8,
+  note: "[M] Sportskeeda B-tier. No ammo (heat-based like the Sickle), no backpack. Fell off after weapon-handling passives got easier to get elsewhere."
+}, {
+  id: "item-hotdog",
+  grades: "C/S/S",
+  sources: 0,
+  name: "AX/FLAM-75 Hot Dog",
+  cat: "backpack",
+  source: "Python Commandos",
+  roles: ["crowd-clear", "sustain"],
+  score: 7.8,
+  note: "Bugs/Squids — drone engagement range mismatches bots' ranged fire."
+}, {
+  id: "bp-shield",
+  grades: "S/B/B",
+  sources: 2,
+  name: "SH-32 Shield Generator Pack",
+  cat: "backpack",
+  source: "Free (base game)",
+  roles: ["survivability"],
+  score: 7.8,
+  note: "[M] Sportskeeda SS-tier overall — near-unanimous 'best backpack' pick. Bots front specifically: blocks ranged volleys a drone can't answer."
+}, {
+  id: "bp-supply",
+  grades: "A/A/A",
+  sources: 0,
+  name: "Supply Pack",
+  cat: "backpack",
+  source: "Free (base game)",
+  roles: ["sustain", "survivability"],
+  score: 6.8,
+  note: "On-demand ammo/stim/grenade resupply. All-fronts utility."
+}, {
+  id: "bp-guarddog",
+  grades: "S+/A/A",
+  sources: 1,
+  name: "AX/AR-23 Guard Dog",
+  cat: "backpack",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 7.2,
+  note: "Sportskeeda rates the Rover variant SS-tier; this ballistic version trades some of that for better damage vs armored chaff."
+}, {
+  id: "bp-ballisticshield",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Ballistic Shield Backpack",
+  cat: "backpack",
+  source: "Free (base game)",
+  roles: ["survivability"],
+  score: 5.8,
+  note: "[M] Sportskeeda B-tier. Personal cover for pushing into Devastator/bot fire; loses a hand for one-handed weapons only."
+}, {
+  id: "bp-hellbomb",
+  grades: "A/A/A",
+  sources: 0,
+  name: "Portable Hellbomb",
+  cat: "backpack",
+  source: "Servants of Freedom",
+  roles: ["anti-heavy", "objective"],
+  score: 7.0,
+  note: "[M] Single massive detonation — bypasses jammers that block a called-in Hellbomb. High commitment, one-shot item."
+}, {
+  id: "sentry-ems",
+  grades: "B/B/B",
+  sources: 0,
+  name: "EMS Mortar Sentry",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["crowd-clear", "survivability"],
+  score: 6.5,
+  note: "Static-field mortar that slows advancing enemies — essential for stopping bot drops from spiraling."
+}, {
+  id: "sentry-mortar",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Mortar Sentry",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier. Regular (non-EMS) variant — raw damage over the area instead of a slow field. Friendly-fire risk if your squad pushes past it."
+}, {
+  id: "sentry-autocannon",
+  grades: "S/S/S",
+  sources: 2,
+  name: "Autocannon Sentry",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["anti-heavy", "crowd-clear"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier, corroborated by GAMES.GG. Handles medium armor at range while you're elsewhere on the objective."
+}, {
+  id: "sentry-rocket",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Rocket Sentry",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["anti-heavy"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier. Dedicated heavy-killer turret — pairs well as a second anti-tank answer on defense missions."
+}, {
+  id: "sentry-tesla",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Tesla Tower",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier. Chain-arcs to nearby enemies automatically — no ammo, no reload, just uptime."
+}, {
+  id: "sentry-mg",
+  grades: "B/B/B",
+  sources: 1,
+  name: "Machine Gun Sentry",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["crowd-clear"],
+  score: 5.8,
+  note: "[M] Sportskeeda B-tier. Cheapest sentry, outclassed by Autocannon/Rocket/Mortar variants once you have them unlocked."
+}, {
+  id: "emp-antitank",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Anti-Tank Emplacement",
+  cat: "sentry",
+  source: "Urban Legends",
+  roles: ["anti-heavy"],
+  score: 8.0,
+  note: "[M] Stationary, destroys vehicles/buildings from safe distance — called S-tier defensive. Immobile, so best on a fixed line to hold."
+}, {
+  id: "emp-shieldrelay",
+  grades: "S/S/S",
+  sources: 1,
+  name: "Shield Generator Relay",
+  cat: "sentry",
+  source: "Free (base game)",
+  roles: ["survivability"],
+  score: 8.7,
+  note: "[M] Sportskeeda S-tier. Squad-wide stationary shield bubble — distinct from the personal Shield Generator Pack backpack."
+}, {
+  id: "sentry-flame",
+  grades: "B/S/B",
+  sources: 0,
+  name: "Flame Sentry",
+  cat: "sentry",
+  source: "Urban Legends",
+  roles: ["crowd-clear"],
+  score: 6.0,
+  note: "Holds chokepoints against swarms. Best on defense missions with a fixed line to hold."
+}, {
+  id: "emp-dirshield",
+  grades: "A/A/A",
+  sources: 0,
+  name: "Directional Shield",
+  cat: "sentry",
+  source: "Urban Legends",
+  roles: ["survivability"],
+  score: 6.8,
+  note: "Deployable mobile cover — blocks incoming fire from one direction, good for revives/reloads under fire."
+}];
+const SHIP_MODULES = [{
+  id: "m1",
+  label: "#1",
+  value: "PAC — Donation Access License",
+  note: "[M] Support weapon deploys max ammo · 60 common. Cheapest real effect in the game"
+}, {
+  id: "m2",
+  label: "#2",
+  value: "Hangar — Liquid-Ventilated Cockpit",
+  note: "[H-MODEL] Only +5% Eagle throughput alone — REQUIRED STEP toward tiers 2-3 · 80c"
+}, {
+  id: "m3",
+  label: "#3",
+  value: "Hangar — Pit Crew Hazard Pay",
+  note: "[H-MODEL] Rearm 150→120s = +24% Eagle throughput · 80c/40r"
+}, {
+  id: "m4",
+  label: "#4",
+  value: "Hangar — Expanded Weapons Bay",
+  note: "[H-MODEL] +1 use/rearm = +42% throughput — THE single biggest upgrade · 80c/80r/10s"
+}, {
+  id: "m5",
+  label: "#5",
+  value: "Bridge — Targeting Software Upgrade",
+  note: "[M] Orbital call-in −1s · 60c"
+}, {
+  id: "m6",
+  label: "#6",
+  value: "Orbital — Exploding Shrapnel",
+  note: "[M] Less orbital damage falloff · 100c"
+}, {
+  id: "m7",
+  label: "#7",
+  value: "PAC — Streamlined Request Process",
+  note: "[M] Support weapon cd −10% · 80c/40r"
+}, {
+  id: "m8",
+  label: "#8",
+  value: "Orbital — More Guns",
+  note: "[M] Buffs Gatling Barrage; stepping stone otherwise · 80c/60r"
+}, {
+  id: "m9",
+  label: "#9",
+  value: "Orbital — Zero-G Breech Loading",
+  note: "[H] Orbital cd −10% (OPS 90→77s) · 80c/80r/10s"
+}, {
+  id: "m10",
+  label: "#10",
+  value: "Hangar — Advanced Crew Training",
+  note: "[H-MODEL] Rearm 120→105s; full chain = +106% vs stock · 200c/250r/25s/30k"
+}, {
+  id: "m11",
+  label: "#11",
+  value: "Hangar — XXL Weapons Bay",
+  note: "[M] Airstrike drops 7th bomb · 150c/150r/15s/25k"
+}, {
+  id: "m12",
+  label: "#12",
+  value: "PAC — Hand Carts",
+  note: "[M] Backpack cd −10% · 80c/60r/5s"
+}, {
+  id: "m13",
+  label: "#13",
+  value: "Bridge — Nuclear Radar",
+  note: "Stepping stone · 80c/40r"
+}, {
+  id: "m14",
+  label: "#14",
+  value: "PAC — Superior Packing Methodology",
+  note: "[M] Resupply fully refills support weapons — REQUIRES Hand Carts first · 150c/150r/15s/20k"
+}, {
+  id: "m15",
+  label: "#15",
+  value: "Bridge — Power Steering",
+  note: "Stepping stone · 80c/80r/10s"
+}, {
+  id: "m16",
+  label: "#16",
+  value: "PAC — Payroll Management System",
+  note: "[M] Support reload −10% · 200c/200r/20s/30k"
+}, {
+  id: "m17",
+  label: "#17",
+  value: "Orbital — Atmospheric Monitoring",
+  note: "Stepping stone · 200c/150r/15s/25k"
+}, {
+  id: "m18",
+  label: "#18",
+  value: "Orbital — High-Density Explosives",
+  note: "[M] Orbital radius +10% · 250c/200r/20s/35k"
+}, {
+  id: "m19",
+  label: "#19",
+  value: "Bridge — Enhanced Combustion",
+  note: "Stepping stone · 200c/150r/15s/25k"
+}, {
+  id: "m20",
+  label: "#20",
+  value: "Bridge — Morale Augmentation",
+  note: "[M] All stratagem cds −5% · 250c/200r/20s/35k"
+}, {
+  id: "m21",
+  label: "#21",
+  value: "Eng. Bay — Synthetic Supplementation",
+  note: "[M] −10% cd for Sentry/Emplacement/Resupply · 60c/10r. Matters more now — you run several sentries"
+}, {
+  id: "m22",
+  label: "#22",
+  value: "Robotics — Dynamic Tracking",
+  note: "[M] Faster Sentry deployment · 60c/20r"
+}, {
+  id: "m23",
+  label: "#23",
+  value: "Eng. Bay — Advanced Construction",
+  note: "[M] +50% Sentry health — REQUIRES Synthetic Supplementation · 80c/60r/5s"
+}, {
+  id: "m24",
+  label: "#24",
+  value: "Robotics — Shock Absorbing Gel",
+  note: "[M] +50% Sentry ammo · 80c/40r/5s"
+}, {
+  id: "m25",
+  label: "#25",
+  value: "Eng. Bay — Rapid Launch System",
+  note: "[M] Removes deployment time for Emplacements · 80c/80r/10s"
+}, {
+  id: "m26",
+  label: "#26",
+  value: "Robotics — High-Quality Lubricant",
+  note: "[M] Sentries rotate to new targets faster · 80c/80r/10s"
+}, {
+  id: "m27",
+  label: "#27",
+  value: "Eng. Bay — Circuit Expansion",
+  note: "[M] Lightning arcs (Arc/Tesla) jump to +1 enemy · ~150c/150r/20s"
+}, {
+  id: "m28",
+  label: "#28",
+  value: "Robotics — Explosion Absorption",
+  note: "[M] Sentries take 50% less explosive damage · 150c/150r/20s"
+}, {
+  id: "m29",
+  label: "#29",
+  value: "Eng. Bay — Tier 5 (name unconfirmed)",
+  note: "Exact tier-5 name/effect not reliably sourced across guides — treat as lowest priority until confirmed in-game"
+}, {
+  id: "m30",
+  label: "#30",
+  value: "Robotics — Cross-Platform Compatibility",
+  note: "Confirmed to exist, but exact effect wasn't consistently described across sources — verify in-game before prioritizing"
+}];
+const TAB_ORDER = ["unlocks", "loadout", "stratagems", "warbonds", "modules"];
+const TAB_LABELS = {
+  unlocks: "MY UNLOCKS",
+  loadout: "LOADOUT",
+  stratagems: "STRATAGEMS",
+  warbonds: "WARBOND TARGETS",
+  modules: "SHIP MODULES"
+};
+const TAB_COLORS = {
+  unlocks: "#22c55e",
+  loadout: "#f5c518",
+  stratagems: "#38bdf8",
+  warbonds: "#4ade80",
+  modules: "#a78bfa"
+};
+// No tabs are mode-split anymore — Loadout followed Stratagems' lead: a solo-viable pick is
+// safe in co-op too, so the nuance lives in item notes instead of a separate list per mode.
+
+const WARBOND_TIER = {
+  "Helldivers Mobilize": 0,
+  "Democratic Detonation": 1,
+  "Servants of Freedom": 1,
+  "Dust Devils": 1,
+  "Redacted Regiment": 1,
+  "Polar Patriots": 1,
+  "Control Group": 1,
+  "Siege Breakers": 1,
+  "Freedom's Flame": 2,
+  "Urban Legends": 2,
+  "Entrenched Division": 2,
+  "Borderline Justice": 2,
+  "Exo Experts": 2,
+  "Chemical Agents": 3,
+  "Cutting Edge": 3,
+  "Steeled Veterans": 3,
+  "Viper Commandos": 3,
+  "Truth Enforcers": 3,
+  "Python Commandos": 3,
+  "Force of Law": 3,
+  "Superstore (rotating)": 4
+};
+const LETTER_VALUES = {
+  "S+": 9.5,
+  "S": 8.7,
+  "A": 7.3,
+  "B": 5.8,
+  "C": 4.3,
+  "D": 3.0
+};
+const ENEMY_OPTIONS = ["Bots", "Bugs", "Squids"];
+const ENEMY_INDEX = {
+  Bots: 0,
+  Bugs: 1,
+  Squids: 2
+};
+function getFactionLetter(item, enemy) {
+  if (!enemy || !item.grades) return null;
+  const parts = item.grades.split("/").map(s => s.trim());
+  return parts[ENEMY_INDEX[enemy]] ?? null;
+}
+function getFactionScore(item, enemy) {
+  const letter = getFactionLetter(item, enemy);
+  if (!letter) return item.score;
+  return LETTER_VALUES[letter] ?? item.score;
+}
+function GradeBadge({
+  grades,
+  sources,
+  enemy
+}) {
+  if (!grades) return null;
+  const n = sources ?? 0;
+  const color = n >= 2 ? "#4ade80" : n === 1 ? "#eab308" : "#fb923c";
+  const label = n >= 2 ? `${n} Sources` : n === 1 ? "1 Source" : "Calculated Rating Only";
+  const title = n >= 2 ? `Calculated rating, confirmed and refined by ${n} independent named tier-list sources on top of it` : n === 1 ? "Calculated rating, with 1 named tier-list source layered on top — not yet independently corroborated" : "No named tier-list source exists for this item — the calculated rating (real specs/mechanics/patch data + comparison to similar sourced items) is the whole basis here, with nothing layered on top of it. See the methodology note at the bottom of the page.";
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: 0.5,
+      padding: "1px 6px",
+      borderRadius: 3,
+      color,
+      border: `1px solid ${color}55`
+    },
+    title: title
+  }, enemy ? grades.split("/").map((g, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    style: i === ENEMY_INDEX[enemy] ? {
+      textDecoration: "underline",
+      color: "#fff"
+    } : {}
+  }, g, i < 2 ? "/" : "")) : grades, " (", label, ")");
+}
+function TabIntro({
+  items
+}) {
+  return /*#__PURE__*/React.createElement("ul", {
+    style: {
+      fontSize: 9,
+      color: "#475569",
+      margin: "0 0 16px",
+      padding: 0,
+      listStyle: "none",
+      display: "flex",
+      flexDirection: "column",
+      gap: 4
+    }
+  }, items.map((text, i) => /*#__PURE__*/React.createElement("li", {
+    key: i,
+    style: {
+      display: "flex",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#334155",
+      flexShrink: 0
+    }
+  }, "•"), /*#__PURE__*/React.createElement("span", null, text))));
+}
+function warbondBaseName(source) {
+  return source.split(" — ")[0].trim();
+}
+function itemPriority(item) {
+  if (typeof item.score === "number") return item.score;
+  if (item.category === "Booster") {
+    const n = parseInt((item.variant || "").replace("#", ""), 10);
+    return Number.isNaN(n) ? 5 : 10 - n;
+  }
+  return 6;
+}
+const ALL_OWNABLE_IDS = [...new Set([...LOADOUT_POOL.map(i => i.id), ...BOOSTER_ITEMS.map(i => i.id), ...VEHICLE_ITEMS.map(i => i.id), ...STRATAGEM_POOL.map(i => i.id), ...SHIP_MODULES.map(i => i.id)])];
+const ROLE_LABELS = {
+  "anti-heavy": "Anti-Heavy",
+  "crowd-clear": "Crowd Clear",
+  "objective": "Objective",
+  "sustain": "Sustained DPS",
+  "survivability": "Survivability",
+  "utility": "Utility"
+};
+const CAT_LABELS = {
+  eagle: "Eagle",
+  orbital: "Orbital",
+  support: "Support Wpn",
+  backpack: "Backpack",
+  sentry: "Sentry/Emplacement"
+};
+const CAT_COLORS = {
+  eagle: "#f59e0b",
+  orbital: "#38bdf8",
+  support: "#a78bfa",
+  backpack: "#4ade80",
+  sentry: "#f472b6"
+};
+const STRAT_TYPES = ["eagle", "orbital", "support", "backpack", "sentry"];
+function scoreStratCandidate(item, selected, enemy) {
+  const selCats = selected.map(s => s.cat);
+  const selRoles = new Set(selected.flatMap(s => s.roles));
+  let bonus = 0,
+    warn = null;
+  if (item.cat === "eagle" && selCats.includes("eagle")) {
+    bonus -= 4;
+    warn = "DUPLICATE EAGLE — shares one rearm timer with your other Eagle. Both go dark together when either depletes.";
+  } else if (!selCats.includes(item.cat)) {
+    bonus += 1.5;
+  }
+  const newRoles = item.roles.filter(r => !selRoles.has(r));
+  bonus += 0.5 * newRoles.length;
+  const base = getFactionScore(item, enemy);
+  return {
+    score: base + bonus,
+    warn,
+    newRoles
+  };
+}
+function getEligibleStratPool(pool, selected) {
+  const supportTaken = selected.some(s => s.cat === "support");
+  const backpackSlotTaken = selected.some(s => s.cat === "backpack" || s.cat === "support" && s.usesBackpack);
+  return pool.filter(p => {
+    if (supportTaken && p.cat === "support") return false;
+    if (backpackSlotTaken && (p.cat === "backpack" || p.cat === "support" && p.usesBackpack)) return false;
+    return true;
+  });
+}
+function App() {
+  const [owned, setOwned] = useState({});
+  const [loaded, setLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState("unlocks");
+  const [slots, setSlots] = useState([null, null, null, null]);
+  const [slotTypeFilter, setSlotTypeFilter] = useState(["", "", "", ""]);
+  const [loadoutPicks, setLoadoutPicks] = useState({
+    Primary: null,
+    Secondary: null,
+    Throwable: null,
+    Armor: null
+  });
+  const [loadoutArchFilter, setLoadoutArchFilter] = useState({
+    Primary: "",
+    Secondary: "",
+    Throwable: "",
+    Armor: ""
+  });
+  const [enemy, setEnemy] = useState("");
+  const [stratSearch, setStratSearch] = useState("");
+  const [loadoutSearch, setLoadoutSearch] = useState("");
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = localStorage.getItem("hd2-owned");
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (p && typeof p === "object" && !Array.isArray(p)) setOwned(p);
+        }
+      } catch {}
+      try {
+        const raw2 = localStorage.getItem("hd2-strat-slots");
+        if (raw2) {
+          const parsed = JSON.parse(raw2);
+          if (Array.isArray(parsed) && parsed.length === 4) {
+            setSlots(parsed);
+          } else if (parsed && Array.isArray(parsed.coop)) {
+            // Legacy shape support: some saved data is keyed per-mode ({coop:[...], solo:[...]}).
+            // Fall back to the co-op picks so existing saved progress isn't lost.
+            setSlots(parsed.coop);
+          }
+          // any other unexpected shape: leave the fresh [null,null,null,null] default
+        }
+      } catch {}
+      try {
+        const raw3 = localStorage.getItem("hd2-loadout-picks");
+        if (raw3) {
+          const parsed = JSON.parse(raw3);
+          const isFlat = parsed && typeof parsed === "object" && !("coop" in parsed) && !("solo" in parsed);
+          if (isFlat) {
+            setLoadoutPicks(parsed);
+          } else if (parsed && parsed.coop) {
+            // Legacy shape support: some saved data is keyed per-mode ({coop:{...}, solo:{...}}).
+            // Fall back to the co-op picks so existing saved progress isn't lost.
+            setLoadoutPicks(parsed.coop);
+          }
+          // any other unexpected shape: leave the fresh default
+        }
+      } catch {}
+      setLoaded(true);
+    })();
+  }, []);
+  const toggleOwned = async id => {
+    const next = {
+      ...owned,
+      [id]: !owned[id]
+    };
+    setOwned(next);
+    try {
+      localStorage.setItem("hd2-owned", JSON.stringify(next));
+    } catch {}
+  };
+  const resetAll = async () => {
+    setOwned({});
+    try {
+      localStorage.setItem("hd2-owned", JSON.stringify({}));
+    } catch {}
+  };
+  const saveSlots = async next => {
+    setSlots(next);
+    try {
+      localStorage.setItem("hd2-strat-slots", JSON.stringify(next));
+    } catch {}
+  };
+  const pickSlot = (idx, item) => {
+    const arr = [...slots];
+    arr[idx] = item ? item.id : null;
+    saveSlots(arr);
+  };
+  const clearSlots = () => saveSlots([null, null, null, null]);
+  const setSlotFilter = (idx, val) => {
+    const arr = [...slotTypeFilter];
+    arr[idx] = val;
+    setSlotTypeFilter(arr);
+  };
+  const saveLoadoutPicks = async next => {
+    setLoadoutPicks(next);
+    try {
+      localStorage.setItem("hd2-loadout-picks", JSON.stringify(next));
+    } catch {}
+  };
+  const pickLoadout = (category, item) => {
+    saveLoadoutPicks({
+      ...loadoutPicks,
+      [category]: item ? item.id : null
+    });
+  };
+  const clearLoadout = () => saveLoadoutPicks({
+    Primary: null,
+    Secondary: null,
+    Throwable: null,
+    Armor: null
+  });
+  const setArchFilter = (category, val) => setLoadoutArchFilter({
+    ...loadoutArchFilter,
+    [category]: val
+  });
+  const total = ALL_OWNABLE_IDS.filter(id => owned[id]).length;
+  const pct = Math.round(total / ALL_OWNABLE_IDS.length * 100);
+  if (!loaded) return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#080b12",
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#f5c518",
+      fontFamily: "monospace",
+      fontSize: 14,
+      letterSpacing: 2
+    }
+  }, "LOADING..."));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#080b12",
+      minHeight: "100vh",
+      fontFamily: "'Courier New', Courier, monospace",
+      color: "#e2e8f0",
+      padding: "20px 14px",
+      maxWidth: 680,
+      margin: "0 auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      letterSpacing: 4,
+      color: "#f5c518",
+      textTransform: "uppercase"
+    }
+  }, "SUPER EARTH ARMED FORCES"), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontSize: 21,
+      fontWeight: 900,
+      color: "#f5c518",
+      letterSpacing: 1.5,
+      margin: "4px 0 14px",
+      textTransform: "uppercase"
+    }
+  }, "Helldiver Field Manual"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      height: 6,
+      background: "#1e2a3a",
+      borderRadius: 3,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: `${pct}%`,
+      height: "100%",
+      background: pct === 100 ? "#22c55e" : "#f5c518",
+      borderRadius: 3,
+      transition: "width 0.3s ease"
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "#94a3b8",
+      minWidth: 100,
+      textAlign: "right"
+    }
+  }, total, "/", ALL_OWNABLE_IDS.length, " OWNED"), /*#__PURE__*/React.createElement("button", {
+    onClick: resetAll,
+    style: {
+      background: "transparent",
+      border: "1px solid #334155",
+      color: "#64748b",
+      fontSize: 10,
+      letterSpacing: 1,
+      padding: "3px 8px",
+      cursor: "pointer",
+      borderRadius: 3,
+      textTransform: "uppercase"
+    }
+  }, "RESET")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      borderBottom: "1px solid #1e2a3a",
+      paddingBottom: 14
+    }
+  }, TAB_ORDER.map(tid => {
+    const active = activeTab === tid;
+    const color = TAB_COLORS[tid];
+    return /*#__PURE__*/React.createElement("button", {
+      key: tid,
+      onClick: () => setActiveTab(tid),
+      style: {
+        padding: "8px 12px",
+        fontSize: 10,
+        fontWeight: 900,
+        letterSpacing: 1.2,
+        textTransform: "uppercase",
+        cursor: "pointer",
+        borderRadius: 5,
+        border: `1px solid ${active ? color : "#334155"}`,
+        background: active ? `${color}22` : "transparent",
+        color: active ? color : "#64748b"
+      }
+    }, TAB_LABELS[tid]);
+  }))), activeTab === "unlocks" && /*#__PURE__*/React.createElement(UnlocksTab, {
+    owned: owned,
+    toggleOwned: toggleOwned
+  }), activeTab === "loadout" && /*#__PURE__*/React.createElement(LoadoutBuilder, {
+    picks: loadoutPicks,
+    pickLoadout: pickLoadout,
+    clearLoadout: clearLoadout,
+    owned: owned,
+    search: loadoutSearch,
+    setSearch: setLoadoutSearch,
+    archFilter: loadoutArchFilter,
+    setArchFilter: setArchFilter,
+    enemy: enemy,
+    setEnemy: setEnemy
+  }), activeTab === "stratagems" && /*#__PURE__*/React.createElement(StratagemBuilder, {
+    slots: slots,
+    pickSlot: pickSlot,
+    clearSlots: clearSlots,
+    pool: STRATAGEM_POOL,
+    color: "#38bdf8",
+    search: stratSearch,
+    setSearch: setStratSearch,
+    owned: owned,
+    typeFilter: slotTypeFilter,
+    setTypeFilter: setSlotFilter,
+    enemy: enemy,
+    setEnemy: setEnemy
+  }), activeTab === "warbonds" && /*#__PURE__*/React.createElement(WarbondTargetsTab, {
+    owned: owned
+  }), activeTab === "modules" && /*#__PURE__*/React.createElement(ShipModulesTab, {
+    owned: owned
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #1e2a3a",
+      paddingTop: 16,
+      marginTop: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#94a3b8",
+      textTransform: "uppercase",
+      marginBottom: 10
+    }
+  }, "How Grade Badges Work"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+      fontSize: 10,
+      color: "#64748b",
+      lineHeight: 1.5
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#4ade80",
+      fontWeight: 700
+    }
+  }, "Green (2+ Sources)"), " — the calculated rating (below) is confirmed and refined by 2 or more independent tier lists that actually rank this item. \"Independent\" means they don't just cite each other; a site that scrapes its numbers from u.gg and calls it original doesn't count as a second source."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#eab308",
+      fontWeight: 700
+    }
+  }, "Yellow (1 Source)"), " — the calculated rating has exactly one named tier list layered on top of it. Probably right, but it's one person's opinion added to the baseline, not a consensus."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fb923c",
+      fontWeight: 700
+    }
+  }, "Orange (Calculated Rating Only)"), " — no tier list ranks this specific item, so the calculated rating stands alone with nothing layered on top. This is NOT a guess from nothing: it's built from real wiki stats, patch notes, and stated mechanics (fire rate, armor pen, cooldowns, etc.), then compared against similar items that DO have ranked sources."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 4,
+      borderTop: "1px dashed #1e2a3a"
+    }
+  }, /*#__PURE__*/React.createElement("b", null, "Important:"), " that same calculated-rating process runs underneath EVERY item's score — green and yellow included, not just orange. Named sources don't replace the calculated baseline; they get layered on top of it and pull the number toward what those sources say. So the color isn't \"calculated vs. real\" — it's \"how much external confirmation exists on top of the same consistent process,\" applied uniformly across the whole guide rather than as a fallback used only when nothing else was available.")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 9,
+      color: "#334155",
+      letterSpacing: 1,
+      margin: "14px 0 0",
+      textAlign: "center"
+    }
+  }, "FOR SUPER EARTH · GRADES READ BOTS/BUGS/SQUIDS")));
+}
+function UnlocksTab({
+  owned,
+  toggleOwned
+}) {
+  const all = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS, ...STRATAGEM_POOL];
+  const grouped = {};
+  all.forEach(item => {
+    const src = warbondBaseName(item.source || "Free (base game)");
+    (grouped[src] = grouped[src] || []).push(item);
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
+    items: ["Check off everything you actually own — this is the ONLY place ownership is set.", "Loadout, Stratagems, Warbond Targets, and Ship Modules all read from this list.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
+  }), Object.entries(grouped).map(([source, items]) => {
+    const ownedCount = items.filter(i => owned[i.id]).length;
+    return /*#__PURE__*/React.createElement("div", {
+      key: source,
+      style: {
+        marginBottom: 18
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 2,
+        color: "#4ade80",
+        textTransform: "uppercase"
+      }
+    }, source), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: ownedCount === items.length ? "#22c55e" : "#475569"
+      }
+    }, ownedCount, "/", items.length)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 6
+      }
+    }, items.map(item => /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      onClick: () => toggleOwned(item.id),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 12px",
+        background: owned[item.id] ? "#0f1a12" : "#0d1117",
+        border: `1px solid ${owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
+        borderRadius: 6,
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 16,
+        height: 16,
+        borderRadius: 3,
+        flexShrink: 0,
+        border: `2px solid ${owned[item.id] ? "#22c55e" : "#334155"}`,
+        background: owned[item.id] ? "#22c55e" : "transparent",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#000",
+        fontSize: 10,
+        fontWeight: 900
+      }
+    }, "✓")), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        color: owned[item.id] ? "#475569" : "#e2e8f0",
+        textDecoration: owned[item.id] ? "line-through" : "none"
+      }
+    }, item.name), /*#__PURE__*/React.createElement(GradeBadge, {
+      grades: item.grades,
+      sources: item.sources
+    })))));
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#a78bfa",
+      textTransform: "uppercase"
+    }
+  }, "Ship Modules (Requisition Slips + Samples)"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#475569"
+    }
+  }, SHIP_MODULES.filter(m => owned[m.id]).length, "/", SHIP_MODULES.length)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6
+    }
+  }, SHIP_MODULES.map(item => /*#__PURE__*/React.createElement("div", {
+    key: item.id,
+    onClick: () => toggleOwned(item.id),
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "8px 12px",
+      background: owned[item.id] ? "#0f1a12" : "#0d1117",
+      border: `1px solid ${owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
+      borderRadius: 6,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 16,
+      height: 16,
+      borderRadius: 3,
+      flexShrink: 0,
+      border: `2px solid ${owned[item.id] ? "#22c55e" : "#334155"}`,
+      background: owned[item.id] ? "#22c55e" : "transparent",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#000",
+      fontSize: 10,
+      fontWeight: 900
+    }
+  }, "✓")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: owned[item.id] ? "#475569" : "#e2e8f0",
+      textDecoration: owned[item.id] ? "line-through" : "none"
+    }
+  }, item.value))))));
+}
+function LoadoutBuilder({
+  picks,
+  pickLoadout,
+  clearLoadout,
+  owned,
+  search,
+  setSearch,
+  archFilter,
+  setArchFilter,
+  enemy,
+  setEnemy
+}) {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 3,
+      height: 18,
+      background: "#f5c518",
+      borderRadius: 2
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: 3,
+      color: "#f5c518"
+    }
+  }, "YOUR LOADOUT"), /*#__PURE__*/React.createElement("button", {
+    onClick: clearLoadout,
+    style: {
+      marginLeft: "auto",
+      background: "transparent",
+      border: "1px solid #334155",
+      color: "#64748b",
+      fontSize: 9,
+      letterSpacing: 1,
+      padding: "3px 8px",
+      cursor: "pointer",
+      borderRadius: 3,
+      textTransform: "uppercase"
+    }
+  }, "CLEAR")), /*#__PURE__*/React.createElement(TabIntro, {
+    items: ["Four independent slots, one blended list — no Co-op/Solo split. Owned items rank first automatically.", "Use the Style dropdown per category to browse one weapon/armor archetype at a time.", "Pick an Enemy below to reorder everything by that faction's specific grade instead of the blended score.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#94a3b8"
+    }
+  }, "ENEMY"), /*#__PURE__*/React.createElement("select", {
+    value: enemy,
+    onChange: e => setEnemy(e.target.value),
+    style: {
+      background: "#0d1117",
+      border: "1px solid #334155",
+      color: enemy ? "#f5c518" : "#e2e8f0",
+      fontSize: 10,
+      padding: "4px 8px",
+      borderRadius: 4,
+      fontFamily: "inherit"
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Blended (all fronts)"), ENEMY_OPTIONS.map(e => /*#__PURE__*/React.createElement("option", {
+    key: e,
+    value: e
+  }, e))), enemy && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#475569"
+    }
+  }, "Reordering by ", enemy, "-specific grade")), LOADOUT_CATEGORIES.map(category => {
+    const picked = picks[category] ? LOADOUT_POOL.find(p => p.id === picks[category]) : null;
+    const color = CAT_COLOR_MAP[category];
+    const archetypes = [...new Set(LOADOUT_POOL.filter(p => p.category === category).map(p => p.archetype))];
+    const currentFilter = archFilter[category];
+    const candidates = LOADOUT_POOL.filter(p => p.category === category).filter(p => !currentFilter || p.archetype === currentFilter).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).sort((a, b) => {
+      const aOwned = owned[a.id] ? 1 : 0,
+        bOwned = owned[b.id] ? 1 : 0;
+      if (aOwned !== bOwned) return bOwned - aOwned;
+      return getFactionScore(b, enemy) - getFactionScore(a, enemy);
+    });
+    return /*#__PURE__*/React.createElement("div", {
+      key: category,
+      style: {
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 8,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 3,
+        height: 14,
+        background: color,
+        borderRadius: 2
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 2,
+        color
+      }
+    }, category.toUpperCase()), /*#__PURE__*/React.createElement("select", {
+      value: currentFilter,
+      onChange: e => setArchFilter(category, e.target.value),
+      style: {
+        background: "#0d1117",
+        border: "1px solid #334155",
+        color: "#e2e8f0",
+        fontSize: 9,
+        padding: "3px 6px",
+        borderRadius: 4,
+        fontFamily: "inherit"
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "All styles"), archetypes.map(a => /*#__PURE__*/React.createElement("option", {
+      key: a,
+      value: a
+    }, a))), picked && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#22c55e",
+        marginLeft: "auto"
+      }
+    }, "✓ ", picked.name)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 6
+      }
+    }, candidates.map(item => {
+      const isOwned = !!owned[item.id];
+      const isPicked = picks[category] === item.id;
+      return /*#__PURE__*/React.createElement("div", {
+        key: item.id,
+        onClick: () => pickLoadout(category, isPicked ? null : item),
+        style: {
+          padding: "9px 12px",
+          borderRadius: 6,
+          cursor: "pointer",
+          border: `1px solid ${isPicked ? color : "#1e2a3a"}`,
+          background: isPicked ? `${color}18` : "#0d1117",
+          opacity: isOwned ? 1 : 0.55
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          flexWrap: "wrap"
+        }
+      }, isPicked && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          color
+        }
+      }, "✓"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#e2e8f0"
+        }
+      }, item.name), /*#__PURE__*/React.createElement(GradeBadge, {
+        grades: item.grades,
+        sources: item.sources,
+        enemy: enemy
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 8,
+          color: "#475569"
+        }
+      }, item.archetype)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 9,
+          color: "#475569",
+          marginTop: 2
+        }
+      }, item.note), !isOwned && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 9,
+          color: "#78350f",
+          marginTop: 2
+        }
+      }, "Not yet unlocked — ", item.source));
+    }), candidates.length === 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#475569",
+        padding: 8
+      }
+    }, "No matches.")));
+  }), /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "filter all categories...",
+    style: {
+      width: "100%",
+      boxSizing: "border-box",
+      background: "#0d1117",
+      border: "1px solid #334155",
+      color: "#e2e8f0",
+      fontSize: 10,
+      padding: "8px",
+      borderRadius: 4,
+      fontFamily: "inherit",
+      marginTop: 4
+    }
+  }));
+}
+function WarbondTargetsTab({
+  owned
+}) {
+  const items = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS].filter(i => !i.source.startsWith("Free"));
+  // Fixed order — same approach as Ship Modules: sort once by (Warbond tier, then item value)
+  // and leave it there. Ownership just changes the icon/strikethrough, not the position —
+  // scroll to find what's left rather than watching the list reshuffle under you.
+  const sorted = [...items].sort((a, b) => {
+    const tierA = WARBOND_TIER[warbondBaseName(a.source)] ?? 5;
+    const tierB = WARBOND_TIER[warbondBaseName(b.source)] ?? 5;
+    if (tierA !== tierB) return tierA - tierB;
+    return itemPriority(b) - itemPriority(a);
+  });
+  const nextIdx = sorted.findIndex(i => !owned[i.id]);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
+    items: ["Fixed priority order, same approach as Ship Modules — the list doesn't reshuffle as you check things off.", "Sorted Warbond value first, then item value within that Warbond.", "Warbond name shown in parentheses next to each item.", "Free/base-game items live in MY UNLOCKS instead — nothing to buy for those."]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6
+    }
+  }, sorted.map((item, idx) => {
+    const warbond = warbondBaseName(item.source);
+    const isNext = idx === nextIdx;
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      style: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        padding: "10px 14px",
+        background: isNext ? "#1a1206" : "#0d1117",
+        border: `1px solid ${isNext ? "#f59e0b" : owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
+        borderRadius: 6,
+        opacity: owned[item.id] ? 0.5 : 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 16,
+        height: 16,
+        borderRadius: 3,
+        flexShrink: 0,
+        marginTop: 2,
+        border: `2px solid ${owned[item.id] ? "#22c55e" : isNext ? "#f59e0b" : "#334155"}`,
+        background: owned[item.id] ? "#22c55e" : "transparent",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#000",
+        fontSize: 10,
+        fontWeight: 900
+      }
+    }, "✓")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "baseline",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#e2e8f0",
+        textDecoration: owned[item.id] ? "line-through" : "none"
+      }
+    }, item.name, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 400,
+        color: "#4ade80"
+      }
+    }, "(", warbond, ")")), /*#__PURE__*/React.createElement(GradeBadge, {
+      grades: item.grades,
+      sources: item.sources
+    }), isNext && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#f59e0b",
+        fontWeight: 700
+      }
+    }, "GET NEXT")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#475569",
+        marginTop: 2
+      }
+    }, item.note)));
+  })));
+}
+function ShipModulesTab({
+  owned
+}) {
+  const nextIdx = SHIP_MODULES.findIndex(m => !owned[m.id]);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
+    items: ["All 30 modules across all 6 categories (Hangar/PAC/Orbital/Bridge/Eng. Bay/Robotics).", "Tiers within each category must be purchased in sequence — no skipping ahead.", "BUY NEXT flags the next unowned module in line.", "Ownership set in MY UNLOCKS."]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6
+    }
+  }, SHIP_MODULES.map((item, idx) => {
+    const isNext = idx === nextIdx;
+    const warn = item.note?.startsWith("Stepping stone");
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      style: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        padding: "10px 14px",
+        background: isNext ? "#1a1206" : owned[item.id] ? "#0f1a12" : "#0d1117",
+        border: `1px solid ${isNext ? "#f59e0b" : owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
+        borderRadius: 6,
+        opacity: owned[item.id] ? 0.6 : 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 16,
+        height: 16,
+        borderRadius: 3,
+        flexShrink: 0,
+        marginTop: 2,
+        border: `2px solid ${owned[item.id] ? "#22c55e" : isNext ? "#f59e0b" : "#334155"}`,
+        background: owned[item.id] ? "#22c55e" : "transparent",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, owned[item.id] && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#000",
+        fontSize: 10,
+        fontWeight: 900
+      }
+    }, "✓")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "baseline",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        letterSpacing: 2,
+        color: "#475569"
+      }
+    }, item.label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#e2e8f0",
+        textDecoration: owned[item.id] ? "line-through" : "none"
+      }
+    }, item.value), isNext && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#f59e0b",
+        fontWeight: 700
+      }
+    }, "BUY NEXT")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: warn ? "#78350f" : "#475569",
+        marginTop: 2
+      }
+    }, item.note)));
+  })));
+}
+function StratagemBuilder({
+  slots,
+  pickSlot,
+  clearSlots,
+  pool,
+  color,
+  search,
+  setSearch,
+  owned,
+  typeFilter,
+  setTypeFilter,
+  enemy,
+  setEnemy
+}) {
+  const selectedItems = slots.map(id => id ? pool.find(p => p.id === id) : null);
+  const filledItems = selectedItems.filter(Boolean);
+  const firstEmptyIdx = slots.findIndex(s => s === null);
+  const activeFilter = firstEmptyIdx === -1 ? "" : typeFilter[firstEmptyIdx];
+  const suggestions = firstEmptyIdx === -1 ? [] : getEligibleStratPool(pool, filledItems).filter(p => !slots.includes(p.id)).filter(p => !activeFilter || p.cat === activeFilter).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).map(p => ({
+    item: p,
+    ...scoreStratCandidate(p, filledItems, enemy)
+  })).sort((a, b) => {
+    const aOwned = owned[a.item.id] ? 1 : 0;
+    const bOwned = owned[b.item.id] ? 1 : 0;
+    if (aOwned !== bOwned) return bOwned - aOwned;
+    return b.score - a.score;
+  });
+  const supportTaken = filledItems.some(s => s.cat === "support");
+  const backpackSlotTaken = filledItems.some(s => s.cat === "backpack" || s.cat === "support" && s.usesBackpack);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 3,
+      height: 18,
+      background: color,
+      borderRadius: 2
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: 3,
+      color
+    }
+  }, "YOUR 4 SLOTS"), /*#__PURE__*/React.createElement("button", {
+    onClick: clearSlots,
+    style: {
+      marginLeft: "auto",
+      background: "transparent",
+      border: "1px solid #334155",
+      color: "#64748b",
+      fontSize: 9,
+      letterSpacing: 1,
+      padding: "3px 8px",
+      cursor: "pointer",
+      borderRadius: 3,
+      textTransform: "uppercase"
+    }
+  }, "CLEAR")), /*#__PURE__*/React.createElement(TabIntro, {
+    items: ["One blended list — co-op and solo notes live side by side in each item now.", "Owned items rank first; unowned show greyed out.", "Use the Type dropdown on an empty slot to browse Eagle/Orbital/Support/Backpack/Sentry separately.", "Pick an Enemy below to reorder suggestions by that faction's specific grade instead of the blended score.", "Duplicate Eagles and locked backpack slots get flagged automatically.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#94a3b8"
+    }
+  }, "ENEMY"), /*#__PURE__*/React.createElement("select", {
+    value: enemy,
+    onChange: e => setEnemy(e.target.value),
+    style: {
+      background: "#0d1117",
+      border: "1px solid #334155",
+      color: enemy ? "#f5c518" : "#e2e8f0",
+      fontSize: 10,
+      padding: "4px 8px",
+      borderRadius: 4,
+      fontFamily: "inherit"
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Blended (all fronts)"), ENEMY_OPTIONS.map(e => /*#__PURE__*/React.createElement("option", {
+    key: e,
+    value: e
+  }, e))), enemy && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#475569"
+    }
+  }, "Reordering by ", enemy, "-specific grade")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(2, 1fr)",
+      gap: 8,
+      marginBottom: 20
+    }
+  }, [0, 1, 2, 3].map(idx => {
+    const item = selectedItems[idx];
+    return /*#__PURE__*/React.createElement("div", {
+      key: idx,
+      style: {
+        padding: "12px",
+        borderRadius: 6,
+        minHeight: 84,
+        border: `1px solid ${item ? CAT_COLORS[item.cat] : "#334155"}`,
+        background: item ? `${CAT_COLORS[item.cat]}15` : "#0d1117",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: "#475569",
+        letterSpacing: 1,
+        marginBottom: 4
+      }
+    }, "SLOT ", idx + 1), item ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#e2e8f0",
+        marginBottom: 3
+      }
+    }, item.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 4,
+        alignItems: "center",
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 8,
+        color: CAT_COLORS[item.cat],
+        letterSpacing: 0.5
+      }
+    }, CAT_LABELS[item.cat]), item.usesBackpack && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 8,
+        color: "#f59e0b"
+      }
+    }, "locks backpack"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => pickSlot(idx, null),
+      style: {
+        marginLeft: "auto",
+        background: "transparent",
+        border: "none",
+        color: "#78350f",
+        fontSize: 9,
+        cursor: "pointer",
+        padding: 0
+      }
+    }, "✕ clear"))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#334155",
+        fontStyle: "italic",
+        marginBottom: 6
+      }
+    }, "— empty —"), /*#__PURE__*/React.createElement("select", {
+      value: typeFilter[idx],
+      onChange: e => setTypeFilter(idx, e.target.value),
+      style: {
+        background: "#0d1117",
+        border: "1px solid #334155",
+        color: "#e2e8f0",
+        fontSize: 9,
+        padding: "3px 6px",
+        borderRadius: 4,
+        fontFamily: "inherit"
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Any type"), STRAT_TYPES.map(t => /*#__PURE__*/React.createElement("option", {
+      key: t,
+      value: t
+    }, CAT_LABELS[t])))));
+  })), (supportTaken || backpackSlotTaken) && firstEmptyIdx !== -1 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "#64748b",
+      marginBottom: 10,
+      letterSpacing: 0.3
+    }
+  }, supportTaken && "Support weapon slot filled — no other Support Weapons will be suggested. ", backpackSlotTaken && "Backpack slot filled — no other Backpacks or backpack-locked Support Weapons will be suggested."), firstEmptyIdx === -1 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "14px",
+      background: "#0f1a12",
+      border: "1px solid #1a3a20",
+      borderRadius: 6,
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#22c55e",
+      fontWeight: 700
+    }
+  }, "✓ All 4 slots filled")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: 2,
+      color: "#94a3b8",
+      textTransform: "uppercase"
+    }
+  }, "Suggestions for Slot ", firstEmptyIdx + 1, activeFilter ? ` — ${CAT_LABELS[activeFilter]}` : ""), /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "filter...",
+    style: {
+      marginLeft: "auto",
+      background: "#0d1117",
+      border: "1px solid #334155",
+      color: "#e2e8f0",
+      fontSize: 10,
+      padding: "4px 8px",
+      borderRadius: 4,
+      width: 100,
+      fontFamily: "inherit"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6
+    }
+  }, suggestions.map(({
+    item,
+    score,
+    warn,
+    newRoles
+  }, i) => {
+    const isOwned = !!owned[item.id];
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      onClick: () => pickSlot(firstEmptyIdx, item),
+      style: {
+        padding: "10px 14px",
+        borderRadius: 6,
+        cursor: "pointer",
+        border: `1px solid ${warn ? "#78350f" : "#1e2a3a"}`,
+        background: "#0d1117",
+        opacity: isOwned ? 1 : 0.55
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "baseline",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: "#475569"
+      }
+    }, "#", i + 1), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#e2e8f0"
+      }
+    }, item.name), /*#__PURE__*/React.createElement(GradeBadge, {
+      grades: item.grades,
+      sources: item.sources,
+      enemy: enemy
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: CAT_COLORS[item.cat]
+      }
+    }, CAT_LABELS[item.cat]), item.usesBackpack && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#f59e0b"
+      }
+    }, "locks backpack"), newRoles.length > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: "#22c55e"
+      }
+    }, "+", newRoles.map(r => ROLE_LABELS[r]).join(", "))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: warn ? "#f59e0b" : "#475569",
+        marginTop: 3
+      }
+    }, warn || item.note), !isOwned && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: "#78350f",
+        marginTop: 2
+      }
+    }, "Not yet unlocked — ", item.source));
+  }), suggestions.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#475569",
+      padding: 10
+    }
+  }, "No matches — try clearing the filter."))));
+}
+
+  document.getElementById("load-status").style.display = "none";
+  var root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(React.createElement(App));
+}
+</script>
+</body>
+</html>
