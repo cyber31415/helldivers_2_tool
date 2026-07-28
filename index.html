@@ -38,6 +38,34 @@ if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
 } else {
   var useState = React.useState, useEffect = React.useEffect;
 
+// PERSISTENCE: the app saves through `window.storage`, which the Claude artifact host provides but
+// a plain browser does NOT. On GitHub Pages that object was simply undefined, and because every
+// call site is wrapped in try/catch the failure was silent — the app looked like it just forgot
+// your settings on refresh. This shim backs the same API with localStorage when the host object is
+// absent, so a published page persists per-browser for whoever opens it.
+//
+// It must match the host contract exactly: get(key) resolves to { value: <string> } or null (the
+// loader tests `r?.value` before parsing), and set(key, value) takes an already-stringified value.
+if (typeof window !== "undefined" && !window.storage) {
+  window.storage = {
+    get: async key => {
+      try {
+        const value = window.localStorage.getItem(key);
+        return value === null ? null : {
+          value
+        };
+      } catch {
+        return null;
+      } // private mode / storage disabled
+    },
+    set: async (key, value) => {
+      try {
+        window.localStorage.setItem(key, String(value));
+      } catch {}
+    }
+  };
+}
+
 // ARCHITECTURE: "MY UNLOCKS" is the ONE tab with checkboxes. Loadout and Stratagems are each a
 // single blended list — no Co-op/Solo split — since a solo-viable pick is generally fine in
 // co-op too; any mode-specific nuance lives in the item's note rather than a separate score.
@@ -1578,6 +1606,21 @@ function App() {
       await window.storage.set("hd2-owned", JSON.stringify(next));
     } catch {}
   };
+  // Bulk set for the per-category "check all" boxes. One state update and one storage write for
+  // the whole group — doing this by looping toggleOwned would race, since each call rebuilds
+  // `next` from the same stale `owned` and the last write would clobber the rest.
+  const setOwnedBulk = async (ids, value) => {
+    const next = {
+      ...owned
+    };
+    ids.forEach(id => {
+      if (value) next[id] = true;else delete next[id];
+    });
+    setOwned(next);
+    try {
+      await window.storage.set("hd2-owned", JSON.stringify(next));
+    } catch {}
+  };
   const toggleWarbond = async name => {
     const next = {
       ...unlockedWarbonds,
@@ -1760,6 +1803,7 @@ function App() {
   }))), activeTab === "unlocks" && /*#__PURE__*/React.createElement(UnlocksTab, {
     owned: owned,
     toggleOwned: toggleOwned,
+    setOwnedBulk: setOwnedBulk,
     unlockedWarbonds: unlockedWarbonds,
     toggleWarbond: toggleWarbond
   }), activeTab === "loadout" && /*#__PURE__*/React.createElement(LoadoutBuilder, {
@@ -1847,9 +1891,61 @@ function App() {
     }
   }, "FOR SUPER EARTH · GRADES READ BOTS/BUGS/SQUIDS")));
 }
+
+// Master checkbox for a MY UNLOCKS category header. Tri-state so a partially-owned group is
+// visually distinct from an empty one: ✓ = all, – = some, blank = none. Clicking when everything
+// is already ticked clears the group; otherwise it fills the group. That ordering is what makes
+// the "tick all, then untick the two I'm missing" workflow fast.
+function SelectAllBox({
+  items,
+  owned,
+  setOwnedBulk
+}) {
+  const ids = items.map(i => i.id);
+  const ownedCount = ids.filter(id => owned[id]).length;
+  const allOwned = ownedCount === ids.length && ids.length > 0;
+  const someOwned = ownedCount > 0 && !allOwned;
+  const label = allOwned ? `Clear all ${ids.length}` : `Select all ${ids.length}`;
+  return /*#__PURE__*/React.createElement("span", {
+    role: "checkbox",
+    "aria-checked": allOwned ? "true" : someOwned ? "mixed" : "false",
+    "aria-label": label,
+    title: label,
+    onClick: e => {
+      e.stopPropagation();
+      setOwnedBulk(ids, !allOwned);
+    },
+    style: {
+      width: 14,
+      height: 14,
+      borderRadius: 3,
+      flexShrink: 0,
+      cursor: "pointer",
+      border: `2px solid ${allOwned || someOwned ? "#22c55e" : "#334155"}`,
+      background: allOwned ? "#22c55e" : "transparent",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, allOwned && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#000",
+      fontSize: 9,
+      fontWeight: 900
+    }
+  }, "✓"), someOwned && /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 7,
+      height: 2,
+      background: "#22c55e",
+      borderRadius: 1
+    }
+  }));
+}
 function UnlocksTab({
   owned,
   toggleOwned,
+  setOwnedBulk,
   unlockedWarbonds,
   toggleWarbond
 }) {
@@ -1947,7 +2043,11 @@ function UnlocksTab({
         gap: 8,
         marginBottom: 8
       }
-    }, /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(SelectAllBox, {
+      items: items,
+      owned: owned,
+      setOwnedBulk: setOwnedBulk
+    }), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
         fontWeight: 700,
@@ -2025,7 +2125,11 @@ function UnlocksTab({
       gap: 8,
       marginBottom: 8
     }
-  }, /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(SelectAllBox, {
+    items: SHIP_MODULES_ORDERED,
+    owned: owned,
+    setOwnedBulk: setOwnedBulk
+  }), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       fontWeight: 700,
