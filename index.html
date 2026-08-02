@@ -358,8 +358,29 @@ if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
 //
 // It must match the host contract exactly: get(key) resolves to { value: <string> } or null (the
 // loader tests `r?.value` before parsing), and set(key, value) takes an already-stringified value.
+// WHETHER IT WORKS IS ITSELF A FACT THE PAGE HAS TO KNOW. Every call site is wrapped in try/catch,
+// so a browser that refuses localStorage — private windows, "clear site data on exit", some
+// file:// configurations, storage quota exhausted — produced a page that saved nothing and said
+// nothing. React state kept everything for as long as the tab lived, so it looked like it was
+// working: settings survived every click and every refresh, and vanished only when the browser
+// closed. That is the worst possible presentation of a broken store, and it is exactly what the
+// owner reported. A silent catch turned "cannot save" into "saved" (§13.16, again).
+//
+// So the shim PROBES: write a canary, read it back, delete it. `window.storage.persists` is the
+// answer, and the page states it rather than assuming it.
 if (typeof window !== "undefined" && !window.storage) {
+  let persists = false;
+  try {
+    const probe = "__hd2_probe__";
+    window.localStorage.setItem(probe, "1");
+    persists = window.localStorage.getItem(probe) === "1";
+    window.localStorage.removeItem(probe);
+  } catch {
+    persists = false;
+  }
   window.storage = {
+    persists,
+    // read by the header badge; never assumed true
     get: async key => {
       try {
         const value = window.localStorage.getItem(key);
@@ -376,7 +397,38 @@ if (typeof window !== "undefined" && !window.storage) {
       } catch {}
     }
   };
+} else if (typeof window !== "undefined" && window.storage && window.storage.persists === undefined) {
+  // The artifact host supplies `storage` and does persist; it just does not advertise the flag.
+  window.storage.persists = true;
 }
+
+// The keys that together ARE your progress. Named once because saving to a file, loading one back
+// and resetting all need the same list, and a key added to one and forgotten in another is a backup
+// that silently drops part of what it claims to hold.
+//
+// (Worded around the bare word for the outbound direction on purpose: `regen.js` rejects the file
+// if `\bexport\b` appears anywhere, which is a deliberately crude guard against a leftover ESM
+// statement. A prose false positive is a cheap price for a guard that cannot be argued with.)
+// `hd2-boosters` was in this list and is written and read by nothing — boosters live inside
+// `hd2-loadout-picks` under the `Booster` key. A phantom entry is worse than a missing one: it
+// implies a store that does not exist, and the next person to add booster state writes to it.
+//
+// DEFAULTS matter as much as the names. Reset and import both need to know what EMPTY looks like
+// per key, and it is not "{}" for all of them — `hd2-strat-slots` is a JSON array and
+// `hd2-armor-weight` is a bare string, not JSON at all. Writing "{}" into the last one stored
+// nonsense the loader survived only because it validates against ARMOR_CLASSES.
+const DEFAULTS = {
+  "hd2-owned": "{}",
+  "hd2-warbonds": "{}",
+  "hd2-armor-weight": "Medium",
+  // FOUR NULLS, NOT AN EMPTY ARRAY. The loader accepts a saved value only when
+  // `parsed.length === 4`, so "[]" is rejected and silently discarded — and "[]" is what an
+  // exported save contained after a RESET. The empty state must be the shape the app writes.
+  "hd2-strat-slots": "[null,null,null,null]",
+  "hd2-loadout-picks": "{}",
+  "hd2-collapsed": "{}"
+};
+const SAVE_KEYS = Object.keys(DEFAULTS);
 
 // ARCHITECTURE: "MY UNLOCKS" is the ONE tab with checkboxes. Loadout and Stratagems are each a
 // single blended list — no Co-op/Solo split — since a solo-viable pick is generally fine in
@@ -388,8 +440,12 @@ if (typeof window !== "undefined" && !window.storage) {
 // Grade confidence is a `sources` count (how many named independent sources back that grade),
 // displayed as a colored badge: green (2+ Sources) = genuinely corroborated, yellow (1 Source)
 // = single reference, orange (Calculated Rating Only) = derived from real specs/mechanics with
-// no tier-list backing found. Standardized grade scale, single letter + optional "+": S+ S A+ A
-// B+ B C+ C D — no double letters.
+// no tier-list backing found. Standardized grade scale: S+ S A B C D — six values, and LETTER_VALUES
+// holds exactly those six. This line used to document nine (S+ S A+ A B+ B C+ C D); `A+`, `B+` and
+// `C+` appear in no grade string, no badge and no artefact — only in that sentence — so a grade
+// carrying one would have fallen through LETTER_VALUES to `null` and silently dropped the item out
+// of every ranking. Corrected to the scale actually in use rather than adding three keys nothing
+// produces, which would be inventing a vocabulary to match a comment.
 //
 // SOURCE-INDEPENDENCE RULE: a source only counts if it's not derivative of another one already
 // counted — a site that scrapes its numbers from another tier list and republishes them isn't
@@ -418,6 +474,8 @@ const LOADOUT_POOL = [
   roles: ["generalist"],
   desc: "Primary Energy-Based weapon that can fire variable-charge bolts of gas",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/S/S;u.gg=S+/S+/S+"
 }, {
@@ -432,15 +490,16 @@ const LOADOUT_POOL = [
   score: 7.0,
   note: "\"One of the most trusted weapons in the game, especially against Automatons\" (FandomWire Mar 2026). Explosive splash, decent all-rounder if you don't have the Purifier yet.",
   roles: ["generalist"],
-  simEdge: ".~.",
   desc: "Primary Energy-Based weapon that fires explosive energy projectiles",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/A;u.gg=S/S/S"
 }, {
   id: "item-coyote",
   grades: "B/S/S",
-  simGrades: "B/A/A",
+  simGrades: "A/A/S",
   sources: 4,
   name: "AR-2 Coyote",
   category: "Primary",
@@ -449,11 +508,13 @@ const LOADOUT_POOL = [
   score: 8.5,
   note: "Bugs/Squids — sustained volume, zero charge discipline. Field-tested ammo economy while kiting.",
   roles: ["generalist"],
-  simEdge: "..~",
   desc: "Primary Assault Rifle that fires AP3 armor penetration incendiary rounds",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
-  pubSrc: "GamesRadar=B/S/S;u.gg=A/S+/S+"
+  pubSrc: "GamesRadar=B/S/S;u.gg=A/S+/S+",
+  simEdge: "~.~"
 }, {
   id: "item-liberator",
   grades: "C/B/B",
@@ -466,9 +527,10 @@ const LOADOUT_POOL = [
   score: 5.5,
   note: "The starter rifle — everyone already has it. Balanced and forgiving with no real weakness, but nothing it does is better than a dedicated pick. Treat it as the baseline you're upgrading away from. The note above is editorial; the letter grade beside it is u.gg's, and four of the five current outlets mention the rifle.",
   roles: ["generalist"],
-  simEdge: "~..",
   desc: "Primary Assault Rifle, available for all Helldivers",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/B;u.gg=B/A/A"
 }, {
@@ -487,12 +549,14 @@ const LOADOUT_POOL = [
   simEdge: ".~.",
   desc: "Primary Explosive weapon that fires jet-assisted shells which inflict impact, explosion and shrapnel damage",
   wtype: "Explosives",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/A;u.gg=S+/S+/S+"
 }, {
   id: "item-dominator",
   grades: "B/B/B",
-  simGrades: "S/S+/S",
+  simGrades: "S+/S+/A",
   sources: 4,
   name: "JAR-5 Dominator",
   category: "Primary",
@@ -504,6 +568,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Special weapon that fires highly damaging rounds in exchange for a severely restricted magazine size",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/C/B;u.gg=A/A/A",
   pubSplit: ".x."
@@ -522,12 +588,14 @@ const LOADOUT_POOL = [
   simEdge: ".~.",
   desc: "Primary Energy-Based weapon that operates like an Assault Rifle, shooting targets with a barrage of laser pulses",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/A/B;u.gg=B/B/B"
 }, {
   id: "item-stoker",
   grades: "B/A/S",
-  simGrades: "B/B/B",
+  simGrades: "B/A/B",
   sources: 4,
   name: "SMG/FLAM-34 Stoker",
   category: "Primary",
@@ -536,15 +604,17 @@ const LOADOUT_POOL = [
   score: 8.8,
   note: "Bugs/Squids — 420 RPM primary + underbarrel flamethrower on secondary fire. Two roles, one slot.",
   roles: ["generalist"],
-  simEdge: "..~",
   desc: "Primary Submachine Gun that comes equipped with an under-barrel flamethrower",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
-  pubSrc: "GamesRadar=B/S/S;u.gg=B/A/S"
+  pubSrc: "GamesRadar=B/S/S;u.gg=B/A/S",
+  simEdge: ".~."
 }, {
   id: "item-m7s",
   grades: "C/C/C",
-  simGrades: "A/B/S",
+  simGrades: "B/B/S",
   sources: 4,
   name: "M7S SMG",
   category: "Primary",
@@ -556,6 +626,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Submachine Gun with a moderate rate of fire and suppressor for silent takedowns, especially suited to Stealth playstyles",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/C;u.gg=C/B/B",
   pubSplit: ".x."
@@ -571,15 +643,16 @@ const LOADOUT_POOL = [
   score: 7.5,
   note: "Bugs/Squids — pump-action incendiary shotgun. Fire-vulnerable Terminid roster makes this hit harder than raw numbers suggest.",
   roles: ["anti-tank"],
-  simEdge: "~..",
   desc: "Primary Shotgun, a variant of the standard Punisher that fires incendiary buckshot",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/A/B;u.gg=C/A/B"
 }, {
   id: "item-breakerie",
   grades: "D/A/B",
-  simGrades: "B/B/S",
+  simGrades: "B/C/S",
   sources: 4,
   name: "SG-225IE Breaker Incendiary",
   category: "Primary",
@@ -591,12 +664,14 @@ const LOADOUT_POOL = [
   simEdge: ".~.",
   desc: "Burst fire Primary Shotgun, a variant of the standard Breaker that fires incendiary buckshot",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/A/B;u.gg=C/A/A"
 }, {
   id: "item-censor",
   grades: "S/C/B",
-  simGrades: "B/B/A",
+  simGrades: "A/B/S",
   sources: 4,
   name: "R-72 Censor",
   category: "Primary",
@@ -608,6 +683,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Marksman Rifle equipped with a suppressor for silent takedowns, specially suited for Stealth playstyles",
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/C/B;u.gg=S/C/A"
 }, {
@@ -625,6 +702,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Marksman Rifle similar to the R-63 Diligence, trading magazine size and handling for greater firepower that can damage AP3 armor",
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/D/C;u.gg=A/C/B"
 }, {
@@ -642,6 +721,8 @@ const LOADOUT_POOL = [
   simEdge: ".~.",
   desc: "Lever-action Primary Marksman Rifle that trades rate-of-fire for AP3 armor penetration, high damage and stagger force, requiring users to aim well and hit their targets the first time",
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/D/C;u.gg=C/C/B",
   pubSplit: "x.."
@@ -662,6 +743,8 @@ const LOADOUT_POOL = [
   wtype: "Special",
   simEdge: "..~",
   desc: "Unlocked on the second page of the Borderline Justice Premium Warbond for 40",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/B/A;u.gg=S/S/S+",
   pubSplit: ".x."
@@ -678,8 +761,9 @@ const LOADOUT_POOL = [
   note: "\"Pocket Purifier\" characterization independently corroborated by Febspot (Mar 2026). Charge-up plasma pistol — riskier than the Talon since charging exposes you, but hits harder per shot.",
   roles: ["anti-tank"],
   desc: "Secondary Special pistol that fires explosive plasma projectiles",
-  simEdge: ".~.",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/S;u.gg=A/S/S+"
 }, {
@@ -697,6 +781,8 @@ const LOADOUT_POOL = [
   roles: ["objective"],
   desc: "Secondary Special single-shot weapon that fires a powerful grenades at a medium range",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=S/S/S;u.gg=S/S+/S+"
 }, {
   id: "item-stimpistol",
@@ -715,7 +801,7 @@ const LOADOUT_POOL = [
 }, {
   id: "item-ultimatum",
   grades: "S/S/A",
-  simGrades: "S+/S+/S",
+  simGrades: "S+/S+/S+",
   sources: 3,
   name: "GP-20 Ultimatum",
   category: "Secondary",
@@ -725,14 +811,15 @@ const LOADOUT_POOL = [
   note: "AP6 pocket anti-tank panic button.",
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   roles: ["anti-tank", "crowd clear", "objective"],
-  simEdge: "~..",
   wtype: "Special",
   desc: "Secondary Special, powerful single-shot weapon that fires extremely destructive explosive rounds",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=S/S/S;u.gg=S+/S+/A"
 }, {
   id: "item-missilepistol",
   grades: "A/B/B",
-  simGrades: "A/C/A",
+  simGrades: "S/B/S",
   sources: 3,
   name: "P-33 Missile Pistol",
   category: "Secondary",
@@ -742,9 +829,10 @@ const LOADOUT_POOL = [
   note: "GamesRadar (May 7, 2026): \"a pretty solid sidearm, particularly against the bots.\" Second anti-tank sidearm option, bundled with the Exo Experts mech content.",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   roles: ["anti-tank", "objective"],
-  simEdge: ".~.",
   desc: "Secondary Special single-shot weapon that fires guided missiles at targets",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/B/A;u.gg=A/A/B"
 }, {
@@ -759,16 +847,17 @@ const LOADOUT_POOL = [
   score: 7.6,
   note: "Bots — heavy-AP revolver, small cylinder, slow reload, hits hard enough to finish priority targets.",
   roles: ["generalist"],
-  simEdge: "..~",
   desc: "Secondary Pistol that can penetrate heavy armor and deals a very high amount of damage per shot",
   wtype: "Pistols",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/B/A;u.gg=S+/S/A",
   pubSplit: ".x."
 }, {
   id: "item-verdict",
   grades: "B/B/B",
-  simGrades: "S/S/A",
+  simGrades: "A/S/A",
   sources: 3,
   name: "P-113 Verdict",
   category: "Secondary",
@@ -777,9 +866,10 @@ const LOADOUT_POOL = [
   score: 6.2,
   note: "Polar Patriots page 3 (60 Medals), confirmed against helldivers.wiki.gg — heavy semi-auto pistol, explosive rounds, good burst finishing power. That confirms where to get it, not how it performs — the grade itself is still the calculated rating, with no independent tier-list backing found yet.",
   roles: ["generalist"],
-  simEdge: ".~.",
   desc: "Secondary Pistol that inflicts high damage per round in exchange for a reduced magazine size",
   wtype: "Pistols",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/B/B;u.gg=A/A/A"
 }, {
@@ -795,8 +885,9 @@ const LOADOUT_POOL = [
   note: "Gyrojet pistol, homing rounds, no damage falloff — more forgiving on aim than a straight-line pistol. Permanently stocked on the Superstore's Force of Law page for 300 Super Credits — no rotation to wait out.",
   roles: ["generalist"],
   desc: "Bought from the Force of Law page on the Superstore for 300",
-  simEdge: ".~.",
   wtype: "Pistols",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/C/B;u.gg=B/A/S",
   pubSplit: ".xx"
@@ -818,6 +909,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Special Throwable that can stick and inflict heavy explosion damage to a single target after a delay",
   wtype: "Special",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "item-stun",
@@ -835,6 +928,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Special Throwable that creates a non-lethal explosion, stunning enemies and slowing Helldivers",
   wtype: "Special",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=S/S/C"
 }, {
   id: "item-gas-nade",
@@ -852,6 +947,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Unlocked on the 1st page of the Chemical Agents Premium Warbond for 30",
   wtype: "Special",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=A/S/S+"
 }, {
   id: "item-impact",
@@ -869,11 +966,13 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Special Throwable that explodes on impact with a surface or entity",
   wtype: "Special",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/S/S"
 }, {
   id: "item-incendiary-nade",
   grades: "B/S/S",
-  simGrades: "B/B/A",
+  simGrades: "B/B/S",
   sources: 4,
   name: "G-10 Incendiary",
   category: "Throwable",
@@ -886,6 +985,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Standard Throwable that trades direct explosive damage for lingering fire, causing enemies to take damage over time",
   wtype: "Standard",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/S+/S+"
 },
 // ARMOR
@@ -1047,15 +1148,17 @@ const LOADOUT_POOL = [
   note: "The Liberator rebuilt for volume — 920 rpm against the standard 640, with the recoil that implies. Close work, where a longer burst matters more than placing it.",
   roles: ["crowd clear"],
   desc: "Primary Assault Rifle, a carbine variant of the standard Liberator, featuring a much faster fire rate at the cost of significantly increased recoil",
-  simEdge: ".~.",
+  simEdge: ".~~",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/C;u.gg=B/A/A",
   pubSplit: "..x"
 }, {
   id: "ar-23c-liberator-concussive",
   grades: "D/D/D",
-  simGrades: "C/D/B",
+  simGrades: "C/D/C",
   sources: 4,
   name: "AR-23C Liberator Concussive",
   category: "Primary",
@@ -1065,8 +1168,9 @@ const LOADOUT_POOL = [
   note: "A drum-fed Liberator cut to 400 rpm and 75 damage in exchange for concussive rounds that interrupt what they hit. You bring it for the stagger, not the kill speed.",
   roles: ["generalist"],
   desc: "Primary Assault Rifle, a variant of the standard Liberator with a drum magazine and increased stagger power in exchange for a significantly reduced rate of fire",
-  simEdge: "..~",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/D/D;u.gg=D/D/D"
 }, {
@@ -1082,15 +1186,16 @@ const LOADOUT_POOL = [
   note: "AP3 rounds at 65 damage. It opens medium armour that the base rifle bounces off entirely, and gives up damage everywhere else to do it.",
   roles: ["generalist"],
   desc: "Primary Assault Rifle, a variant of the standard Liberator with increased armor-piercing capabilities",
-  simEdge: "..~",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=B/A/B",
   pubSplit: ".x."
 }, {
   id: "ar-32-pacifier",
   grades: "C/C/D",
-  simGrades: "B/A/C",
+  simGrades: "B/B/C",
   sources: 4,
   name: "AR-32 Pacifier",
   category: "Primary",
@@ -1102,6 +1207,8 @@ const LOADOUT_POOL = [
   desc: "Primary Assault Rifle that fires AP3 armor penetration stun rounds in exchange for significantly low damage output",
   simEdge: "~.~",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/D/D;u.gg=B/A/C",
   pubSplit: "xx."
@@ -1118,11 +1225,13 @@ const LOADOUT_POOL = [
   note: "High-calibre AP2 rounds at 105 damage and 600 rpm: the heaviest single round in the assault-rifle class.",
   roles: ["crowd clear"],
   desc: "Primary Assault Rifle that fires AP2-armor penetrating high-caliber rounds",
-  simEdge: ".~.",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=B/A/A",
-  pubSplit: ".xx"
+  pubSplit: ".xx",
+  simEdge: "..~"
 }, {
   id: "ar-gl-21-one-two",
   grades: "C/B/B",
@@ -1136,9 +1245,10 @@ const LOADOUT_POOL = [
   note: "An assault rifle with an under-barrel grenade launcher, so one primary slot covers both infantry and objectives.",
   facts: "Closes bug holes and fabricators",
   roles: ["objective"],
-  simEdge: "~~~",
   desc: "Primary Assault Rifle with an under-barrelled grenade launcher",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/B;u.gg=B/A/B"
 }, {
@@ -1155,10 +1265,13 @@ const LOADOUT_POOL = [
   roles: ["anti-tank"],
   desc: "Primary Energy-Based shotgun that fires arcs of electricity instead of buckshot",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   simUnmeasured: "fire rate",
   pubSrc: "GamesRadar=D/B/C;u.gg=D/S/A",
-  pubSplit: ".xx"
+  pubSplit: ".xx",
+  simEdge: "..~"
 }, {
   id: "br-14-adjudicator",
   grades: "B/B/B",
@@ -1172,8 +1285,10 @@ const LOADOUT_POOL = [
   note: "A battle rifle in the Liberator family: AP3 at 95 damage and 550 rpm, sitting between the assault rifles and the marksman rifles.",
   roles: ["crowd clear"],
   desc: "Primary Assault Rifle",
-  simEdge: "..~",
+  simEdge: "~.~",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/C/B;u.gg=B/A/B",
   pubSplit: ".x."
@@ -1193,27 +1308,14 @@ const LOADOUT_POOL = [
   desc: "Primary Explosive weapon",
   simEdge: ".~.",
   wtype: "Explosives",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/A/A;u.gg=S+/S+/S"
 }, {
-  id: "cqc-20-breaching-hammer",
-  grades: "A/B/B",
-  sources: 3,
-  name: "CQC-20 Breaching Hammer",
-  category: "Melee",
-  archetype: "Anti-Armor",
-  source: "Siege Breakers",
-  score: 8.2,
-  note: "A melee hammer whose strike carries its own explosion — 2,200 damage at AP6. It needs contact, and the model charges nothing for closing that distance.",
-  facts: "One-shots Charger, Charger Behemoth, Harvester and others · Closes bug holes and fabricators · Staggers heavy targets",
-  desc: "Melee Support Weapon, which is capable of dealing explosive damage by striking enemies",
-  pubSrc: "GamesRadar=A/C/C;u.gg=S/S/A",
-  pubSplit: ".xx",
-  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge."
-}, {
   id: "dbs-2-double-freedom",
   grades: "A/A/A",
-  simGrades: "S+/S+/A",
+  simGrades: "S+/S+/B",
   sources: 3,
   name: "DBS-2 Double Freedom",
   category: "Primary",
@@ -1223,8 +1325,9 @@ const LOADOUT_POOL = [
   note: "Two AP3 barrels at 70 damage a pellet, then a reload. Enormous stopping power against a two-shell magazine.",
   roles: ["anti-tank"],
   desc: "Double-barreled Primary Shotgun, compensating its limited capacity with massive stopping power",
-  simEdge: ".~~",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=A/A/A;u.gg=A/S/A"
 }, {
   id: "flam-66-torcher",
@@ -1239,8 +1342,9 @@ const LOADOUT_POOL = [
   note: "A primary flamethrower: 2 damage a tick at AP4, applied continuously. It burns light armour down at close range and does nothing at distance.",
   roles: ["generalist"],
   desc: "Primary Speacial flamethrower",
-  simEdge: ".~.",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/S/A;u.gg=C/B/S+",
   pubSplit: ".x."
@@ -1260,6 +1364,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Special Throwable that can stick and inflict stun to a single target after a delay",
   wtype: "Special",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=D/D/C"
 }, {
   id: "g-12-high-explosive",
@@ -1277,11 +1383,13 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Standard Throwable with a high damaging, heavy armor penetrating explosion",
   wtype: "Standard",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/A/A"
 }, {
   id: "g-13-incendiary-impact",
   grades: "B/S/S",
-  simGrades: "C/D/C",
+  simGrades: "B/C/B",
   sources: 4,
   name: "G-13 Incendiary Impact",
   category: "Throwable",
@@ -1294,10 +1402,13 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Special Throwable that combines the characteristics of the G-16 Impact and G-10 Incendiary",
   wtype: "Special",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/S+/S+"
 }, {
   id: "g-142-pyrotech",
   grades: "S/A/A",
+  simGrades: "D/D/D",
   sources: 4,
   name: "G-142 Pyrotech",
   category: "Throwable",
@@ -1305,11 +1416,14 @@ const LOADOUT_POOL = [
   source: "Masters of Ceremony",
   score: 7.8,
   note: "Trades explosive damage entirely for lingering fire: no direct damage at all. The burn is the weapon.",
-  facts: "Closes bug holes and fabricators",
+  facts: "Closes bug holes and fabricators · Staggers heavy targets · Carry 6",
   roles: ["objective"],
   desc: "Special Throwable that trades direct explosive damage for lingering fire, causing enemies to take damage over time",
   wtype: "Special",
-  pubSrc: "u.gg=S/A/A"
+  pubSrc: "u.gg=S/A/A",
+  simEdge: "..~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire."
 }, {
   id: "g-31-arc",
   grades: "C/C/C",
@@ -1328,7 +1442,7 @@ const LOADOUT_POOL = [
 }, {
   id: "g-50-seeker",
   grades: "A/B/A",
-  simGrades: "D/B/B",
+  simGrades: "C/A/B",
   sources: 3,
   name: "G-50 Seeker",
   category: "Throwable",
@@ -1341,6 +1455,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Unlocked on the 3rd page of the Servants of Freedom Premium Warbond for 65",
   wtype: "Special",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/B/A"
 }, {
   id: "g-6-frag",
@@ -1358,6 +1474,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Standard Throwable with a large explosive radius, producing shrapnel that can deal additional damage",
   wtype: "Standard",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/A/A"
 }, {
   id: "k-2-throwing-knife",
@@ -1388,6 +1506,8 @@ const LOADOUT_POOL = [
   desc: "Primary Energy-Based weapon that operates like an assault rifle, shooting targets with a barrage of laser pulses but will damage the user after prolonged firing",
   simEdge: "~..",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/A;u.gg=A/A/A"
 }, {
@@ -1402,16 +1522,17 @@ const LOADOUT_POOL = [
   score: 3.9,
   note: "A continuous laser that never reloads — 350 a second at AP2. It cannot get through armour, so it is a beam for clearing chaff.",
   roles: ["anti-tank"],
-  simEdge: "~..",
   desc: "Primary Energy-Based laser rifle with infinite ammo",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/D;u.gg=A/A/A",
   pubSplit: "xxx"
 }, {
   id: "las-7-dagger",
   grades: "D/C/C",
-  simGrades: "D/C/C",
+  simGrades: "D/B/C",
   sources: 3,
   name: "LAS-7 Dagger",
   category: "Secondary",
@@ -1421,8 +1542,9 @@ const LOADOUT_POOL = [
   note: "A laser sidearm with infinite ammunition, 250 a second at AP2. It exists so your secondary is never empty.",
   roles: ["anti-tank"],
   desc: "Secondary Special energy-based laser pistol with infinite ammo",
-  simEdge: ".~.",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/C/D;u.gg=C/C/B",
   pubSplit: "..x"
@@ -1441,13 +1563,15 @@ const LOADOUT_POOL = [
   simEdge: "~..",
   desc: "Primary Submachine Gun with an extremely high rate of fire",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/C/C;u.gg=B/A/A",
   pubSplit: "xxx"
 }, {
   id: "p-19-redeemer",
   grades: "C/B/B",
-  simGrades: "A/B/A",
+  simGrades: "A/A/A",
   sources: 3,
   name: "P-19 Redeemer",
   category: "Secondary",
@@ -1459,12 +1583,14 @@ const LOADOUT_POOL = [
   desc: "Fully automatic Secondary Pistol",
   simEdge: "..~",
   wtype: "Pistols",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/B;u.gg=B/A/A"
 }, {
   id: "p-2-peacemaker",
   grades: "D/C/C",
-  simGrades: "B/A/S",
+  simGrades: "B/A/A",
   sources: 3,
   name: "P-2 Peacemaker",
   category: "Secondary",
@@ -1476,6 +1602,8 @@ const LOADOUT_POOL = [
   desc: "Starting Secondary Pistol for every Helldiver",
   simEdge: "..~",
   wtype: "Pistols",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=D/C/C"
 }, {
@@ -1491,8 +1619,9 @@ const LOADOUT_POOL = [
   note: "A one-handed flamethrower in the sidearm slot — 2 damage a tick at AP4. Short range, and it keeps working while your other hand is busy.",
   roles: ["generalist"],
   desc: "Secondary Special handheld flamethrower that can be wielded in one hand",
-  simEdge: ".~~",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/S/A;u.gg=B/A/S+"
 }, {
@@ -1509,6 +1638,8 @@ const LOADOUT_POOL = [
   roles: ["anti-tank"],
   desc: "Primary Energy-Based, burst-firing plasma sniper rifle",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/D;u.gg=A/B/A",
   pubSplit: "xxx"
@@ -1525,8 +1656,10 @@ const LOADOUT_POOL = [
   note: "A marksman rifle with semi-automatic and three-round burst modes, 200 a shot at 480 rpm.",
   roles: ["crowd clear"],
   desc: "Primary Marksman Rifle that can fire in semi-automatic or three-round bursts modes",
-  simEdge: "..~",
+  simEdge: ".~~",
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/C/C;u.gg=A/C/A",
   pubSplit: "..x"
@@ -1545,6 +1678,8 @@ const LOADOUT_POOL = [
   simEdge: "~~.",
   desc: "Primary Marksman Rifle that fires AP2 armor penetrating, but highly damaging shots",
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/C/C;u.gg=S/C/A",
   pubSplit: "..x"
@@ -1562,6 +1697,8 @@ const LOADOUT_POOL = [
   roles: ["anti-tank"],
   desc: "Dual-tube, pump-action Primary Shotgun",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/C/C;u.gg=B/A/B",
   pubSplit: "xx."
@@ -1578,8 +1715,9 @@ const LOADOUT_POOL = [
   note: "A triple-barrelled sidearm shotgun — three shells at 45 a pellet, then a slow reload.",
   roles: ["generalist"],
   desc: "Secondary Special triple-barreled shotgun",
-  simEdge: "..~",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=B/B/B;u.gg=C/B/C"
 }, {
   id: "sg-225-breaker",
@@ -1596,12 +1734,14 @@ const LOADOUT_POOL = [
   desc: "Fully-automatic, mag-fed Primary Shotgun that is able to dish out tremendous amounts of damage in a short period of time",
   simEdge: "~..",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/B;u.gg=C/A/A"
 }, {
   id: "sg-225sp-breaker-spray-pray",
   grades: "D/C/C",
-  simGrades: "B/C/A",
+  simGrades: "C/C/A",
   sources: 4,
   name: "SG-225SP Breaker Spray&Pray",
   category: "Primary",
@@ -1610,16 +1750,17 @@ const LOADOUT_POOL = [
   score: 4.3,
   note: "The Breaker firing a wide birdshot spread at 15 a pellet — more coverage, far less per-target damage.",
   roles: ["generalist"],
-  simEdge: "..~",
   desc: "Fully-automatic Primary Shotgun, a variant of the standard Breaker that fires a wide and mostly horizontal spread of birdshot pellets",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/C/D;u.gg=C/C/B",
   pubSplit: "..x"
 }, {
   id: "sg-8-punisher",
   grades: "C/B/C",
-  simGrades: "C/D/B",
+  simGrades: "C/D/C",
   sources: 4,
   name: "SG-8 Punisher",
   category: "Primary",
@@ -1629,8 +1770,9 @@ const LOADOUT_POOL = [
   note: "A pump shotgun built around damage and stagger per shell rather than rate: 45 a pellet at 80 rounds a minute.",
   roles: ["generalist"],
   desc: "Primary Shotgun, possessing high damage and stagger per shot, at the cost of a low overall fire rate",
-  simEdge: "~.~",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/C;u.gg=C/A/C"
 }, {
@@ -1646,8 +1788,9 @@ const LOADOUT_POOL = [
   note: "A Punisher firing exploding plasma shells at AP3 — area damage from a primary, with the explosion doing the work rather than pellets.",
   roles: ["anti-tank"],
   desc: "Primary Energy-Based weapon, a variant of the standard Punisher that fires AP3 armor penetrating, exploding plasma rounds",
-  simEdge: ".~.",
   wtype: "Energy-Based",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/B/B;u.gg=S+/S/S+",
   pubSplit: "xxx"
@@ -1666,6 +1809,8 @@ const LOADOUT_POOL = [
   desc: "Primary Shotgun, a variant of the standard Punisher that fires AP3 armor penetrating slugs, as opposed to buckshot",
   simEdge: "..~",
   wtype: "Shotguns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=D/B/D"
 }, {
@@ -1681,8 +1826,10 @@ const LOADOUT_POOL = [
   note: "A submachine gun with AP3 and 140 damage a round, against a restricted magazine. Heavy-hitting for the class and short on ammunition.",
   roles: ["crowd clear"],
   desc: "Primary Submachine Gun with high damage and AP3 armor penetration in exchange for restricted magazine size",
-  simEdge: "..~",
+  simEdge: ".~~",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/C/B;u.gg=B/A/A",
   pubSplit: ".x."
@@ -1701,13 +1848,15 @@ const LOADOUT_POOL = [
   simEdge: ".~.",
   desc: "Primary Submachine Gun with a moderate rate of fire",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/C/D;u.gg=C/C/B",
   pubSplit: "..x"
 }, {
   id: "smg-72-pummeler",
   grades: "D/D/D",
-  simGrades: "B/C/B",
+  simGrades: "C/C/B",
   sources: 4,
   name: "SMG-72 Pummeler",
   category: "Primary",
@@ -1719,6 +1868,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Submachine Gun that fires concussive rounds that can stun enemies",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/D/D;u.gg=D/C/C"
 }, {
@@ -1736,6 +1887,8 @@ const LOADOUT_POOL = [
   simEdge: "..~",
   desc: "Primary Submachine Gun with an extremely high rate of fire",
   wtype: "Submachine Guns",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/D/D;u.gg=C/B/A",
   pubSplit: ".xx"
@@ -1751,12 +1904,14 @@ const LOADOUT_POOL = [
   score: 6.8,
   note: "A drum-magazine assault rifle at 790 rpm and 90 a round: a long burst before you reload.",
   roles: ["crowd clear"],
-  simEdge: "~..",
   desc: "Primary Assault Rifle with a drum magazine",
   wtype: "Assault Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=D/D/D;u.gg=C/B/A",
-  pubSplit: ".xx"
+  pubSplit: ".xx",
+  simEdge: "~.~"
 }, {
   id: "ted-63-dynamite",
   grades: "S/S/A",
@@ -1773,11 +1928,13 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Standard Throwable with a wide and high damaging explosion, at the cost of a longer than usual fuse",
   wtype: "Standard",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S/S/A"
 }, {
   id: "vg-70-variable",
   grades: "B/B/A",
-  simGrades: "B/B/B",
+  simGrades: "B/C/B",
   sources: 5,
   name: "VG-70 Variable",
   category: "Primary",
@@ -1789,6 +1946,8 @@ const LOADOUT_POOL = [
   desc: "Primary Special weapon",
   simEdge: "~.~",
   wtype: "Special",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/A;u.gg=A/A/S",
   pubSplit: "x.."
@@ -1808,6 +1967,8 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Special Throwable with a wide and high damaging explosion, at the cost of less than usual grenade capacity",
   wtype: "Special",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/A/A"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
@@ -1825,6 +1986,8 @@ const LOADOUT_POOL = [
   desc: "Bolt-action Primary Marksman Rifle reminiscent of pre-Democratic rifles",
   roles: ["anti-tank"],
   wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/D;u.gg=D/D/D"
 },
@@ -1833,7 +1996,7 @@ const LOADOUT_POOL = [
 {
   id: "g-7-pineapple",
   grades: "A/A/A",
-  simGrades: "B/C/D",
+  simGrades: "A/B/C",
   sources: 4,
   name: "G-7 Pineapple",
   category: "Throwable",
@@ -1846,116 +2009,294 @@ const LOADOUT_POOL = [
   simEdge: "~~~",
   desc: "Standard Throwable that explodes into several bomblets with shrapnel, able to inflict damage over a large area",
   wtype: "Standard",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/A/A"
 },
 // --- added by emit_missing.py --melee: listed, never simulated (BADGE_DESIGN.md §6) ---
 {
-  id: "cqc-1-one-true-flag",
-  sources: 3,
-  grades: "D/D/D",
-  name: "CQC-1 One True Flag",
-  category: "Melee",
-  source: "Masters of Ceremony",
-  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
-  pubSrc: "GamesRadar=D/D/D;u.gg=D/D/D",
-  desc: "Melee Support Weapon"
-}, {
   id: "cqc-19-stun-lance",
   sources: 3,
   grades: "D/C/C",
   name: "CQC-19 Stun Lance",
-  category: "Melee",
+  category: "Secondary",
   source: "Urban Legends",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=D/C/B;u.gg=D/C/C",
-  desc: "Melee Secondary Weapon"
+  desc: "Melee Secondary Weapon",
+  wtype: "Melee"
 }, {
   id: "cqc-2-saber",
   sources: 3,
   grades: "D/C/C",
   name: "CQC-2 Saber",
-  category: "Melee",
+  category: "Secondary",
   source: "Masters of Ceremony",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=D/D/D;u.gg=C/B/B",
   pubSplit: ".xx",
-  desc: "Melee Secondary Weapon"
+  desc: "Melee Secondary Weapon",
+  wtype: "Melee"
 }, {
   id: "cqc-30-stun-baton",
   sources: 3,
   grades: "D/D/D",
   name: "CQC-30 Stun Baton",
-  category: "Melee",
+  category: "Secondary",
   source: "Superstore",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=D/D/D;u.gg=D/C/C",
-  desc: "Melee Secondary Weapon"
+  desc: "Melee Secondary Weapon",
+  wtype: "Melee"
 }, {
   id: "cqc-42-machete",
   sources: 2,
   grades: "C/C/C",
   name: "CQC-42 Machete",
-  category: "Melee",
+  category: "Secondary",
   source: "Superstore",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=C/C/C;u.gg=B/B/B",
-  desc: "Melee Secondary Weapon"
+  desc: "Melee Secondary Weapon",
+  wtype: "Melee"
 }, {
   id: "cqc-5-combat-hatchet",
   sources: 2,
   grades: "D/C/C",
   name: "CQC-5 Combat Hatchet",
-  category: "Melee",
+  category: "Secondary",
   source: "Superstore",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=D/D/D;u.gg=C/B/B",
   pubSplit: ".xx",
-  desc: "Melee Secondary Weapon"
-}, {
-  id: "cqc-72-entrenchment-tool",
-  sources: 3,
-  name: "CQC-72 Entrenchment Tool",
-  category: "Melee",
-  source: "Acquisition unknown",
-  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
-  desc: "Melee Support Weapon that doubles as a shovel"
+  desc: "Melee Secondary Weapon",
+  wtype: "Melee"
 }, {
   id: "cqc-73-entrenchment-tool",
   sources: 3,
   grades: "D/D/D",
   name: "CQC-73 Entrenchment Tool",
-  category: "Melee",
+  category: "Secondary",
   source: "Entrenched Division",
   notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
   pubSrc: "GamesRadar=D/D/D;u.gg=D/C/C",
-  desc: "Melee Secondary Weapon that doubles as a shovel"
+  desc: "Melee Secondary Weapon that doubles as a shovel",
+  wtype: "Melee"
+},
+// --- filed by published weapon_category, not by the pool they were emitted into ---
+{
+  id: "ar-59-suppressor",
+  grades: "C/C/B",
+  simGrades: "A/B/S",
+  sources: 4,
+  name: "AR-59 Suppressor",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Redacted Regiment",
+  score: 4.8,
+  note: "A suppressed assault rifle at 80 damage and 850 rpm — the same pattern as the standard rifle, without announcing your position.",
+  simEdge: "..~",
+  desc: "Primary Assault Rifle, equipped with a suppressor for silent takedowns, especially suited to Stealth playstyles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=C/C/B;u.gg=B/B/B",
+  wtype: "Assault Rifles"
 }, {
-  id: "cqc-9-defoliation-tool",
+  id: "las-13-trident",
+  grades: "B/B/B",
+  simGrades: "D/D/D",
+  sources: 4,
+  name: "LAS-13 Trident",
+  category: "Primary",
+  roles: ["anti-tank"],
+  source: "Siege Breakers",
+  score: 3.0,
+  note: "An energy shotgun firing a spread of laser pulses, AP2. No reload, and no answer to armour.",
+  desc: "Primary Energy-Based shotgun in Helldivers 2",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=B/B/B;u.gg=A/A/A",
+  wtype: "Energy-Based",
+  simEdge: "..~"
+}, {
+  id: "m90a-shotgun",
+  grades: "D/B/C",
+  simGrades: "C/D/C",
+  sources: 4,
+  name: "M90A Shotgun",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Obedient Democracy Support Troopers",
+  score: 3.4,
+  note: "The M90A issued as a support weapon: extremely high damage per shell against a very small magazine, at 80 rounds a minute.",
+  desc: "Primary Shotgun, able to inflict extremely high damage per round in exchange for a significantly reduced magazine size",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=C/B/B;u.gg=D/B/C",
+  wtype: "Shotguns"
+}, {
+  id: "ma5c-assault-rifle",
+  grades: "C/B/B",
+  simGrades: "S/S/A",
+  sources: 4,
+  name: "MA5C Assault Rifle",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Obedient Democracy Support Troopers",
+  score: 6.3,
+  note: "The MA5C pattern in the support slot — AP3 at 90 damage and 640 rpm.",
+  simEdge: "..~",
+  desc: "Primary Assault Rifle",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=B/C/C;u.gg=C/A/A",
+  pubSplit: ".xx",
+  wtype: "Assault Rifles"
+}, {
+  id: "sg-97-sweeper",
+  grades: "A/A/A",
+  simGrades: "S/S+/A",
   sources: 3,
-  grades: "D/C/C",
-  name: "CQC-9 Defoliation Tool",
-  category: "Melee",
-  source: "Python Commandos",
-  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
-  pubSrc: "GamesRadar=C/C/C;u.gg=D/C/C",
-  desc: "Melee Support Weapon, which is capable of dealing prolonged damage on target"
+  name: "SG-97 Sweeper",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Superstore",
+  score: 4.8,
+  note: "A flechette shotgun at AP3 — the pellets penetrate where buckshot would not, against a small magazine.",
+  desc: "Primary Shotgun with AP3 armor penetrating flechettes, able to inflict high damage per round in exchange for a significantly reduced magazine size",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=A/A/A;u.gg=A/S/S",
+  wtype: "Shotguns"
+}, {
+  id: "smg-203-gallant",
+  grades: "C/B/B",
+  simGrades: "S/S/A",
+  sources: 3,
+  name: "SMG-203 Gallant",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Exo Experts",
+  score: 5.8,
+  note: "The Knight rebuilt for penetration: AP3 at 65 damage, still 1,380 rpm. Less damage a round, more of it lands on armour.",
+  desc: "Variant of the MP-98 Knight that sacrifices damage in exchange for AP3 armor penetration",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=C/C/C;u.gg=B/S/S",
+  pubSplit: ".xx",
+  wtype: "Submachine Guns",
+  simEdge: ".~."
+}, {
+  id: "r-4-hyena",
+  grades: "A/B/B",
+  simGrades: "B/A/B",
+  sources: 1,
+  name: "R-4 Hyena",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Acquisition unknown",
+  score: 6.8,
+  note: "A marksman rifle trading magazine, rate and handling for firepower and incendiary rounds — 220 a shot at AP3.",
+  desc: "Primary Marksman Rifle similar to the R-63CS Diligence Counter Sniper, trading magazine count, fire rate, and handling for greater firepower and incendiary rounds",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "u.gg=A/B/B",
+  wtype: "Marksman Rifles",
+  simEdge: "~.."
+}, {
+  id: "m6c-socom-pistol",
+  grades: "B/C/C",
+  simGrades: "A/S/S",
+  sources: 3,
+  name: "M6C/SOCOM Pistol",
+  category: "Secondary",
+  roles: ["generalist"],
+  source: "Obedient Democracy Support Troopers",
+  score: 4.3,
+  note: "The suppressed SOCOM issued as a support weapon — 125 damage at 900 rpm, quiet.",
+  desc: "Secondary Pistol with a suppressor and relatively high damage for silent takedowns, especially suited to Stealth playstyles",
+  simEdge: "..~",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=B/C/C;u.gg=B/B/B",
+  wtype: "Pistols"
+}, {
+  id: "p-35-re-educator",
+  grades: "B/B/B",
+  simGrades: "D/D/D",
+  sources: 3,
+  name: "P-35 Re-Educator",
+  category: "Secondary",
+  roles: ["anti-tank"],
+  source: "Redacted Regiment",
+  score: 3.0,
+  note: "Fires gas darts that disorient rather than damage — 60 a dart with 1 demolition force. The disorientation is the entire point, and it is not something a kill-speed model can credit.",
+  desc: "Secondary Special pistol that fires Gas darts to disorient enemies",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=C/D/C;u.gg=A/S/S",
+  pubSplit: "xxx",
+  wtype: "Special"
+}, {
+  id: "p-69-veto",
+  grades: "B/B/B",
+  simGrades: "B/C/B",
+  sources: 3,
+  name: "P-69 Veto",
+  category: "Secondary",
+  roles: ["generalist"],
+  source: "Entrenched Division",
+  score: 3.0,
+  note: "A sidearm with jet-assisted rounds at 105 damage and heavy stagger for the class.",
+  desc: "Secondary Pistol with an internal magazine and jet-assisted rounds, able to inflict high stagger to enemies",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  pubSrc: "GamesRadar=B/C/C;u.gg=A/A/A",
+  pubSplit: ".xx",
+  wtype: "Pistols"
+}, {
+  id: "tm-1-lure-mine",
+  grades: "A/S/A",
+  sources: 3,
+  name: "TM-1 Lure Mine",
+  category: "Throwable",
+  roles: ["objective"],
+  source: "Redacted Regiment",
+  score: 8.7,
+  note: "Draws enemies in before detonating on proximity for 1,000 damage plus shrapnel. It makes the fight come to a place of your choosing.",
+  facts: "Closes bug holes and fabricators",
+  desc: "Special Throwable that lures in enemies before proximity detonating with a high damage explosion and shrapnel",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
+  pubSrc: "u.gg=A/S/A",
+  wtype: "Special"
 }];
 
-// MELEE IS ITS OWN CATEGORY, and it is not folded into Secondary even though both outlets file it
-// under their secondary pages. Owner: "keep melee weapons all together, they require a specific
-// mechanic unique to them, making physical contact with the weapon to the enemy" — and three of the
-// ten are support-weapon-slot items, so Secondary would be wrong for them anyway.
+// MELEE IS NOT A CATEGORY HERE, AND THAT IS A CORRECTION. This list used to carry one, on the
+// reading that melee weapons "require a specific mechanic unique to them". They do — but a mechanic
+// is not a slot, and the game has no melee slot to browse. Every melee article publishes
+// `weapon_category`: it reads `Secondary Weapons` for six of the ten and `Support Weapons` for the
+// other four, which is also how both outlets file them. The invented category put four call-in
+// stratagems in the Loadout tab and hid all ten from the slot a player actually looks under.
 //
-// It sat in the DATA before it sat here: the CQC-20 Breaching Hammer has carried
-// `category: "Melee"` since it was separated out of the support weapons, and this list did not name
-// it, so the Loadout tab could not render the category at all. The other nine were not in the guide
-// in any form. Nothing carries a simulated badge here — BADGE_DESIGN.md §6, gated in
-// check_coverage.py.
-const LOADOUT_CATEGORIES = ["Primary", "Secondary", "Melee", "Throwable", "Armor", "Booster"];
+// They are now filed where the corpus files them and carry `wtype: "Melee"`, so the weapon-type
+// dropdown still gathers them in one place — the grouping the original instruction wanted, without
+// claiming a slot that does not exist. emit_missing.melee_slot() decides per item;
+// check_coverage.py gates it against the wiki rather than against a constant. Nothing here carries
+// a simulated badge — BADGE_DESIGN.md §6.
+const LOADOUT_CATEGORIES = ["Primary", "Secondary", "Throwable", "Armor", "Booster"];
 const CAT_COLOR_MAP = {
   Primary: "#f5c518",
   Secondary: "#38bdf8",
-  Melee: "#c084fc",
   Throwable: "#fb923c",
   Armor: "#4ade80",
   Booster: "#f472b6"
@@ -2101,6 +2442,55 @@ const VEHICLE_ITEMS = [];
 // STRATAGEM_POOL: single composite score (blended coop+solo), `cat` doubles as the TYPE filter
 // value (eagle/orbital/support/backpack/sentry). `source` gates ownership. Nearly all free.
 const STRATAGEM_POOL = [{
+  id: "cqc-20-breaching-hammer",
+  grades: "A/B/B",
+  sources: 3,
+  name: "CQC-20 Breaching Hammer",
+  cat: "support",
+  usesBackpack: false,
+  archetype: "Anti-Armor",
+  source: "Siege Breakers",
+  score: 8.2,
+  note: "A melee hammer whose strike carries its own explosion — 2,200 damage at AP6. It needs contact, and the model charges nothing for closing that distance.",
+  desc: "Melee Support Weapon, which is capable of dealing explosive damage by striking enemies",
+  pubSrc: "GamesRadar=A/C/C;u.gg=S/S/A",
+  pubSplit: ".xx",
+  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
+  wtype: "Melee"
+}, {
+  id: "cqc-1-one-true-flag",
+  sources: 3,
+  grades: "D/D/D",
+  name: "CQC-1 One True Flag",
+  cat: "support",
+  usesBackpack: false,
+  source: "Masters of Ceremony",
+  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
+  pubSrc: "GamesRadar=D/D/D;u.gg=D/D/D",
+  desc: "Melee Support Weapon",
+  wtype: "Melee"
+}, {
+  id: "cqc-72-entrenchment-tool",
+  sources: 3,
+  name: "CQC-72 Entrenchment Tool",
+  cat: "support",
+  source: "Acquisition unknown",
+  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
+  desc: "Melee Support Weapon that doubles as a shovel",
+  wtype: "Melee"
+}, {
+  id: "cqc-9-defoliation-tool",
+  sources: 3,
+  grades: "D/C/C",
+  name: "CQC-9 Defoliation Tool",
+  cat: "support",
+  usesBackpack: false,
+  source: "Python Commandos",
+  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
+  pubSrc: "GamesRadar=C/C/C;u.gg=D/C/C",
+  desc: "Melee Support Weapon, which is capable of dealing prolonged damage on target",
+  wtype: "Melee"
+}, {
   id: "eagle-airstrike",
   grades: "S/S/A",
   simGrades: "B/C/D",
@@ -2114,6 +2504,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Charger, Hulk Bruiser and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive stratagem that unleashes a powerful bombardment of six bombs in a straight line",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S+/S+/A"
 }, {
   id: "eagle-110mm",
@@ -2129,6 +2521,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive stratagem that sends out 3 volleys of 2 rockets into the largest target near the beacon",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/A/D"
 }, {
   id: "eagle-500kg",
@@ -2143,6 +2537,8 @@ const STRATAGEM_POOL = [{
   note: "Sportskeeda rates this SS-tier on raw peak damage. Our reliability-adjusted model scores it lower — 10m inner kill radius, ~4.5s delay, ~30% est. hit rate on a MOVING heavy. Both are 'true': devastating when it lands, unreliable against anything mobile.",
   facts: "One-shots Annihilator Tank, Barrager Tank, Bile Titan and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S+/S+/B"
 }, {
   id: "eagle-strafing",
@@ -2158,6 +2554,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators",
   simEdge: "~~~",
   desc: "Offensive stratagem that calls the Eagle in to fire a barrage of anti-tank, high-explosive shells, parallel to the player",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S+/S/S+"
 }, {
   id: "eagle-napalm",
@@ -2173,21 +2571,25 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive stratagem that releases an incendiary payload to ignite a fire on the targeted area temporarily",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/A/S"
 }, {
   id: "eagle-cluster",
   grades: "A/S/A",
-  simGrades: "S+/S/S",
+  simGrades: "D/D/D",
   sources: 1,
   name: "Eagle Cluster Bomb",
   cat: "eagle",
   source: "Free (base game)",
-  roles: ["crowd clear", "objective"],
+  roles: ["anti-tank", "crowd clear", "objective"],
   score: 5.8,
   note: "Sportskeeda B-tier. Scatter-pattern crowd clear — less precise than Airstrike, wider spread.",
   facts: "Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: ".~~",
+  simEdge: "~~~",
   desc: "Offensive stratagem that calls in a carpet bomb on the area",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/S/A"
 }, {
   id: "eagle-smoke",
@@ -2203,6 +2605,8 @@ const STRATAGEM_POOL = [{
   facts: "Denies 157 m2 sustained",
   simEdge: "~~~",
   desc: "Offensive stratagem that drops several smoke bombs to create a large smokescreen to provide concealment",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=B/D/D"
 }, {
   id: "orb-ops",
@@ -2218,11 +2622,13 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Barrager Tank, Bile Titan and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Unlocked by default upon completing training",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S/S/S"
 }, {
   id: "orb-railcannon",
   grades: "A/A/D",
-  simGrades: "C/B/C",
+  simGrades: "B/B/C",
   sources: 1,
   name: "Orbital Railcannon Strike",
   cat: "orbital",
@@ -2232,6 +2638,8 @@ const STRATAGEM_POOL = [{
   note: "High per-hit damage, ~95% hit — same throughput conflict as the 500kg: devastating per-use, but 180s cd caps real uptime.",
   facts: "One-shots Annihilator Tank, Barrager Tank, Bile Titan and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/A/D"
 }, {
   id: "orb-laser",
@@ -2247,7 +2655,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "orb-gatling",
   grades: "S/S/A",
-  simGrades: "A/A/B",
+  simGrades: "S/S/A",
   sources: 1,
   name: "Orbital Gatling Barrage",
   cat: "orbital",
@@ -2257,6 +2665,8 @@ const STRATAGEM_POOL = [{
   note: "70s cd sustained shredder. Weakest vs squids.",
   facts: "Closes bug holes and fabricators · 0.8 uses/min",
   simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S+/S+/A"
 }, {
   id: "orb-airburst",
@@ -2272,6 +2682,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators · Staggers heavy targets · 0.6 uses/min",
   simEdge: "~~~",
   desc: "Offensive Stratagem in Helldivers 2, designed for wiping out large groups of enemy infantry",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/S+/A"
 }, {
   id: "orb-gas",
@@ -2287,6 +2699,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators · Staggers heavy targets · Denies 138 m2 sustained",
   simEdge: "~~~",
   desc: "Offensive orbital Stratagem that disperses lingering gas and applies a confusion effect over a large area",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=S+/S+/S"
 }, {
   id: "orb-120mm",
@@ -2302,11 +2716,13 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive stratagem which fires 5-6 salvos of 3 high-explosive shells, with a pause between each salvo",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S/B/A"
 }, {
   id: "orb-380mm",
   grades: "B/B/C",
-  simGrades: "D/D/D",
+  simGrades: "C/D/D",
   sources: 2,
   name: "Orbital 380mm HE Barrage",
   cat: "orbital",
@@ -2317,6 +2733,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Barrager Tank, Charger and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive stratagem firing 5-6 salvos of 3 shells",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/B/C"
 }, {
   id: "orb-ems",
@@ -2332,11 +2750,13 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators · Staggers heavy targets · Denies 103 m2 sustained",
   simEdge: "~~~",
   desc: "Powerful utility Stratagem, useful for locking down enemy advances and/or for stunning high priority targets",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=D/B/B"
 }, {
   id: "sup-autocannon",
   grades: "A/A/B",
-  simGrades: "A/S/A",
+  simGrades: "A/A/A",
   sources: 4,
   name: "AC-8 Autocannon",
   cat: "support",
@@ -2346,8 +2766,9 @@ const STRATAGEM_POOL = [{
   score: 8.2,
   note: "S+/S+/S+ all-fronts. Especially strong co-op (reload-buddy negates its one downside) — solo it's still good, just not top-of-class. Own ammo backpack.",
   facts: "Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "~..",
   desc: "Support Weapon that fires explosive, armor-piercing APHET projectiles which can be changed into flak rounds for crowd control",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/B/C;u.gg=S+/S+/S+",
   pubSplit: "xxx"
@@ -2365,6 +2786,8 @@ const STRATAGEM_POOL = [{
   note: "No backpack, no reload — shines especially solo. Weakest vs squids.",
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   desc: "Energy-based anti-tank Support Weapon Stratagem",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/S/A;u.gg=S/S/C",
   pubSplit: "..x"
@@ -2382,6 +2805,8 @@ const STRATAGEM_POOL = [{
   note: "S+/S+/C. Own ammo backpack — solo reload is slow; shines with a teammate reloading you.",
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: ".~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=S/A/B;u.gg=S+/S+/C"
 }, {
   id: "sup-eat",
@@ -2397,6 +2822,8 @@ const STRATAGEM_POOL = [{
   note: "Disposable, fast recall, no backpack cost — good while learning anti-tank timing.",
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "..~",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=S/A/A;u.gg=S/S+/C",
   pubSplit: "..x"
 }, {
@@ -2412,8 +2839,9 @@ const STRATAGEM_POOL = [{
   score: 6.4,
   note: "Sportskeeda S-tier. Auto-lock anti-tank homing missile — cannot be dumb-fired, and locks won't hold past 300m. Own backpack; lock-on can be finicky solo. Unlocked at the Patriotic Administration Center (Level 20, 9,000 Requisition).",
   facts: "One-shots Annihilator Tank, Barrager Tank, Bile Titan and others · Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "~..",
   desc: "Unlocked at the Patriotic Administration Center for at Level 20",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/B/C;u.gg=S/A/C"
 }, {
@@ -2429,8 +2857,9 @@ const STRATAGEM_POOL = [{
   score: 7.1,
   note: "Sportskeeda SS-tier. Precision charge-shot anti-armor, no backpack. High skill ceiling (overcharge risk).",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators",
-  simEdge: ".~~",
   desc: "Stratagem which calls down a Support Weapon that fires highly damaging projectiles at the cost of fire rate",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/A;u.gg=S/B/C",
   pubSplit: "..x"
@@ -2447,8 +2876,9 @@ const STRATAGEM_POOL = [{
   score: 6.4,
   note: "Chain-lightning crowd control, no backpack. Weak vs bots (long engagement range).",
   facts: "Arcs to 2 targets",
-  simEdge: ".~.",
   desc: "Support weapon that projects an arc of lightning that can chain between multiple targets",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   simUnmeasured: "fire rate",
   pubSrc: "GamesRadar=D/D/D;u.gg=C/A/A",
@@ -2467,12 +2897,14 @@ const STRATAGEM_POOL = [{
   note: "Panic + DoT vs organics, no backpack. Weak/self-risk vs bots.",
   desc: "Support weapon capable of projecting flames several meters",
   simEdge: ".~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/A/A;u.gg=B/S/S+"
 }, {
   id: "sup-mg",
   grades: "C/B/A",
-  simGrades: "A/A/A",
+  simGrades: "B/B/B",
   sources: 3,
   name: "MG-43 Machine Gun",
   cat: "support",
@@ -2481,14 +2913,15 @@ const STRATAGEM_POOL = [{
   roles: ["crowd clear"],
   score: 5.4,
   note: "Light sustained suppression, no backpack. Outclassed at high difficulty.",
-  simEdge: ".~~",
   desc: "Stratagem that calls down a Support Weapon capable of rapidly firing armor penetrating rounds",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/B/A;u.gg=B/B/S"
 }, {
   id: "sup-gl",
   grades: "S/S/S",
-  simGrades: "A/B/D",
+  simGrades: "B/B/D",
   sources: 5,
   name: "GL-21 Grenade Launcher",
   cat: "support",
@@ -2498,8 +2931,9 @@ const STRATAGEM_POOL = [{
   score: 6.7,
   note: "From range, and no backpack.",
   facts: "Closes bug holes and fabricators",
-  simEdge: "..~",
   desc: "Stratagem that calls down a Support Weapon capable of rapidly firing grenades, inflicting large amounts of splash damage",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/S/S;u.gg=S/S/S"
 }, {
@@ -2514,8 +2948,9 @@ const STRATAGEM_POOL = [{
   roles: ["anti-tank"],
   score: 5.8,
   note: "Sportskeeda B-tier. No ammo (heat-based like the Sickle), no backpack. Fell off after weapon-handling passives got easier to get elsewhere.",
-  simEdge: ".~.",
   desc: "Heat-based support weapon that fires a sustained beam of energy that penetrates heavy armor",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=B/B/B"
 }, {
@@ -2531,6 +2966,8 @@ const STRATAGEM_POOL = [{
   note: "Bugs/Squids — drone engagement range mismatches bots' ranged fire.",
   simEdge: "~~~",
   desc: "Backpack Stratagem that provides support to the player by automatically targeting enemies and setting them on fire with its mounted flamethrower",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "bp-shield",
@@ -2565,6 +3002,8 @@ const STRATAGEM_POOL = [{
   score: 7.2,
   note: "Sportskeeda rates the Rover variant SS-tier; this ballistic version trades some of that for better damage vs armored chaff.",
   simEdge: "~~~",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=A/A/S"
 }, {
   id: "bp-ballisticshield",
@@ -2601,6 +3040,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators · Staggers heavy targets · Denies 12 m2 sustained",
   simEdge: "~~~",
   desc: "Defensive stratagem",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=A/A/A"
 }, {
   id: "sentry-mortar",
@@ -2616,6 +3057,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Very powerful defensive stratagem able to destroy enemies from range, and behind cover",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S/D/D"
 }, {
   id: "sentry-autocannon",
@@ -2631,6 +3074,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Powerful defensive stratagem firing armor-piercing, high-explosive shells",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "sentry-rocket",
@@ -2646,11 +3091,12 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators",
   simEdge: "~~~",
   desc: "Defensive stratagem that fires powerful rockets in succession",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S+/S/S"
 }, {
   id: "sentry-tesla",
   grades: "B/S/S",
-  simGrades: "S/S/S",
   sources: 1,
   name: "A/ARC-3 Tesla Tower",
   cat: "sentry",
@@ -2659,8 +3105,9 @@ const STRATAGEM_POOL = [{
   score: 8.7,
   note: "Sportskeeda S-tier. Fires automatically — no ammo, no reload, just uptime.",
   facts: "Arcs to 3 targets",
-  simEdge: "~~~",
   desc: "Sentry that sends electric arcs toward all entities within 20 meters",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=B/S+/S+"
 }, {
   id: "sentry-mg",
@@ -2675,6 +3122,8 @@ const STRATAGEM_POOL = [{
   note: "Sportskeeda B-tier. Cheapest sentry, outclassed by Autocannon/Rocket/Mortar variants once you have them unlocked.",
   simEdge: "~~~",
   desc: "Defensive stratagem capable of laying down sustained fire for a long duration",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S/S+/S+"
 }, {
   id: "emp-antitank",
@@ -2690,6 +3139,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Charger, Hulk Bruiser, Hulk Firebomber and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Unlocked on the 3rd page of the Urban Legends Premium Warbond for 110",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S+/S/S+"
 }, {
   id: "emp-shieldrelay",
@@ -2716,6 +3167,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators",
   simEdge: "~~~",
   desc: "Close-range incendiary sentry stratagem",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=B/S/S"
 }, {
   id: "emp-dirshield",
@@ -2743,6 +3196,8 @@ const STRATAGEM_POOL = [{
   note: "A triple-barrel gatling turret that fires extremely fast and burns through its ammunition just as fast. It aims itself and does not choose targets well.",
   simEdge: "~~~",
   desc: "Defensive stratagem that fires at an extremely fast rate with its triple barreled gatling gun",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=A/S/S+"
 }, {
   id: "a-las-98-laser-sentry",
@@ -2757,11 +3212,13 @@ const STRATAGEM_POOL = [{
   note: "A turret firing a sustained AP4 laser at 350 damage — it cuts through light armour, and its beam has to stay on a target to do it.",
   simEdge: "~~~",
   desc: "Close-range incendiary sentry stratagem from the Control Group Warbond",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=C/B/A"
 }, {
   id: "apw-1-anti-materiel-rifle",
   grades: "B/C/C",
-  simGrades: "S/S/S",
+  simGrades: "S/A/S",
   sources: 3,
   name: "APW-1 Anti-Materiel Rifle",
   cat: "support",
@@ -2770,33 +3227,11 @@ const STRATAGEM_POOL = [{
   score: 8.2,
   note: "A 450-damage AP4 scoped rifle, slow and unforgiving of a miss. Weak points only.",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others",
-  simEdge: "~~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/D/C;u.gg=A/B/C",
   pubSplit: ".x."
-}, {
-  id: "ax-las-5-guard-dog-rover",
-  simGrades: "S/A/S",
-  sources: 1,
-  name: "AX/LAS-5 \"Guard Dog\" Rover",
-  cat: "backpack",
-  roles: ["generalist"],
-  source: "Free (base game)",
-  score: 8.7,
-  note: "A backpack drone that engages targets on its own with a laser, recharging between bursts. It never reloads and it does not ask before firing.",
-  simEdge: "~~~"
-}, {
-  id: "ax-tx-13-guard-dog-dog-breath",
-  simGrades: "B/B/B",
-  sources: 1,
-  name: "AX/TX-13 \"Guard Dog\" Dog Breath",
-  cat: "backpack",
-  roles: ["generalist"],
-  source: "Chemical Agents",
-  score: 5.8,
-  note: "A backpack drone that sprays a chemical agent rather than shooting — it applies a lingering effect to whatever it passes over.",
-  simEdge: "~~~",
-  desc: "Unlocked on the 3rd page of the Chemical Agents Premium Warbond for 110"
 }, {
   id: "e-mg-101-hmg-emplacement",
   grades: "S/S/S",
@@ -2810,11 +3245,13 @@ const STRATAGEM_POOL = [{
   note: "A mounted AP4 heavy machine gun at 200 a round. It hits hard and hits a lot, and it fixes you in place while you use it.",
   simEdge: "~~~",
   desc: "Stratagem that deploys a static, manually-operated machine gun emplacement",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "exo-45-patriot-exosuit",
   grades: "A/A/B",
-  simGrades: "A/A/A",
+  simGrades: "S/A/A",
   sources: 1,
   name: "EXO-45 Patriot Exosuit",
   cat: "vehicle",
@@ -2825,11 +3262,13 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Charger, Hulk Bruiser, Hulk Firebomber and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Exosuit Stratagem featuring a rocket pod on the left hand and a minigun on the right",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=A/A/B"
 }, {
   id: "exo-49-emancipator-exosuit",
   grades: "S/S/S",
-  simGrades: "D/D/D",
+  simGrades: "D/B/D",
   sources: 1,
   name: "EXO-49 Emancipator Exosuit",
   cat: "vehicle",
@@ -2840,13 +3279,15 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Exosuit Stratagem featuring 2 dual autocannons as armaments",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S/S/S+"
 },
 // --- relocated from VEHICLE_ITEMS: an exosuit is a stratagem, and VEHICLE_ITEMS is not a section ---
 {
   id: "item-lumberer",
   grades: "S/S/B",
-  simGrades: "S/S/S",
+  simGrades: "A/S/S",
   sources: 1,
   name: "EXO-51 Lumberer Exosuit",
   cat: "vehicle",
@@ -2857,6 +3298,8 @@ const STRATAGEM_POOL = [{
   desc: "Exosuit Stratagem featuring an anti-tank cannon on the right arm and a flamethrower on the left",
   simEdge: "~~~",
   facts: "One-shots Charger, Hulk Bruiser, Hulk Firebomber and others · Closes bug holes and fabricators · Staggers heavy targets",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S/S/B"
 }, {
   id: "gl-52-de-escalator",
@@ -2871,29 +3314,33 @@ const STRATAGEM_POOL = [{
   note: "A support weapon firing arc grenades in quick succession. It deals no direct damage — the arcs and the stun are the effect.",
   facts: "Arcs to 3 targets",
   desc: "Stratagem that calls down a Support Weapon capable of rapidly firing arc grenades",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=B/A/A",
   pubSplit: ".xx"
 }, {
   id: "m-1000-maxigun",
   grades: "C/C/B",
-  simGrades: "A/A/S",
+  simGrades: "A/A/A",
   sources: 3,
   name: "M-1000 Maxigun",
   cat: "support",
+  usesBackpack: true,
   roles: ["crowd clear"],
   source: "Python Commandos",
   score: 7.8,
   note: "A belt-fed minigun with its own ammunition backpack, at 1,500 rpm and AP3. Enormous sustained volume against anything not heavily armoured.",
   desc: "Stratagem that calls down a Support Weapon, consisting of a belt-fed minigun and ammo backpack",
-  simEdge: "..~",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/C;u.gg=B/B/A",
   pubSplit: ".xx"
 }, {
   id: "m-105-stalwart",
   grades: "C/A/A",
-  simGrades: "B/A/A",
+  simGrades: "B/B/A",
   sources: 4,
   name: "M-105 Stalwart",
   cat: "support",
@@ -2901,15 +3348,15 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   score: 3.9,
   note: "A light machine gun at 850 rpm with selectable fire rates, reloaded while standing. Built for chaff, and it never really stops firing.",
-  simEdge: "..~",
   desc: "Stratagem which calls down a Support Weapon which specializes in disposing of large quantities of lightly armored targets",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/A/B;u.gg=B/A/S+",
   pubSplit: "..x"
 }, {
   id: "md-17-anti-tank-mines",
   grades: "S/A/D",
-  simGrades: "B/D/D",
   sources: 1,
   name: "MD-17 Anti-Tank Mines",
   cat: "sentry",
@@ -2918,12 +3365,12 @@ const STRATAGEM_POOL = [{
   score: 3.9,
   note: "Scatters heavy AP5 mines over an area — 2,000 damage each, six salvos of three. It denies ground rather than killing on command, which is why the model refuses to rank it.",
   facts: "Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S/A/D"
 }, {
   id: "md-6-anti-personnel-minefield",
   grades: "B/A/A",
-  simGrades: "C/D/C",
   sources: 1,
   name: "MD-6 Anti-Personnel Minefield",
   cat: "sentry",
@@ -2932,8 +3379,9 @@ const STRATAGEM_POOL = [{
   score: 4.8,
   note: "Blankets a 25-30 metre area with mines, six salvos of eight. It is area denial, not a strike: nothing dies until something walks in.",
   facts: "Closes bug holes and fabricators",
-  simEdge: "~~~",
   desc: "Defensive stratagem that blankets a roughly 25-30 meter diameter area around itself with mines",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/A/A"
 }, {
   id: "md-8-gas-mines",
@@ -2951,7 +3399,6 @@ const STRATAGEM_POOL = [{
 }, {
   id: "md-i4-incendiary-mines",
   grades: "B/S/S",
-  simGrades: "D/D/D",
   sources: 1,
   name: "MD-I4 Incendiary Mines",
   cat: "sentry",
@@ -2960,13 +3407,14 @@ const STRATAGEM_POOL = [{
   score: 3.0,
   note: "Blankets a 25-30 metre area with incendiary mines, setting fire to whatever triggers them rather than killing outright.",
   facts: "Closes bug holes and fabricators",
-  simEdge: "~~~",
   desc: "Defensive stratagem that blankets a roughly 25-30 meter diameter area around itself with incendiary mines",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=B/S/S"
 }, {
   id: "mg-206-heavy-machine-gun",
   grades: "C/C/C",
-  simGrades: "S/A/S",
+  simGrades: "A/A/A",
   sources: 3,
   name: "MG-206 Heavy Machine Gun",
   cat: "support",
@@ -2974,8 +3422,9 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   score: 7.3,
   note: "An AP4 machine gun at 150 a round — heavy enough to hurt armour, and it fights you on recoil the whole time.",
-  simEdge: "~~.",
   desc: "Unlocked at the Patriotic Administration Center for at Level 12",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/C/C;u.gg=B/B/B"
 }, {
@@ -2990,8 +3439,9 @@ const STRATAGEM_POOL = [{
   score: 7.8,
   note: "A four-shot guided rocket launcher at AP6. The rockets steer, so its damage does not fall off with range.",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "..~",
   desc: "Disposable four-barrel anti-tank rocket launcher Support Weapon that can be fired with or without laser-guidance",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/A/A;u.gg=S/B/B"
 }, {
@@ -3007,6 +3457,8 @@ const STRATAGEM_POOL = [{
   note: "Five salvos of five napalm shells across a wide radius, leaving the ground burning for as long as the fire lasts.",
   facts: "One-shots Reinforced Scout Strider · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/S/S"
 }, {
   id: "orbital-smoke-strike",
@@ -3019,9 +3471,11 @@ const STRATAGEM_POOL = [{
   source: "Free (base game)",
   score: 4.3,
   note: "A smokescreen rather than a weapon — it breaks line of sight over a wide area. What it buys is not something a damage model can score.",
-  facts: "Staggers heavy targets · Denies 23 m2 sustained",
+  facts: "Staggers heavy targets · Denies 31 m2 sustained",
   simEdge: "~~~",
   desc: "Stratagem that creates a large smokescreen to provide cover",
+  simScale: "area denied",
+  simScaleNote: "Rated on AREA CONTROLLED — square metres denied, and for how long. This item is not rated on damage, and several in this class deal none at all.",
   pubSrc: "u.gg=B/D/D"
 }, {
   id: "orbital-walking-barrage",
@@ -3037,20 +3491,24 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Barrager Tank, Charger and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "~~~",
   desc: "Offensive Stratagem which fires several salvos of high-explosive shells, with each following salvo displacing further in the target direction",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=S/B/A"
 }, {
   id: "rl-77-airburst-rocket-launcher",
   grades: "B/B/B",
-  simGrades: "S/S/B",
+  simGrades: "A/S/B",
   sources: 3,
   name: "RL-77 Airburst Rocket Launcher",
   cat: "support",
+  usesBackpack: true,
   roles: ["anti-tank", "crowd clear", "objective"],
   source: "Free (base game)",
   score: 8.7,
   note: "Rockets that burst into submunitions in flight — devastating against groups, and dangerous to fire at anything close to you.",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "..~",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=C/B/C;u.gg=A/B/S+",
   pubSplit: "x.x"
 }, {
@@ -3060,6 +3518,7 @@ const STRATAGEM_POOL = [{
   sources: 2,
   name: "StA-X3 W.A.S.P. Launcher",
   cat: "support",
+  usesBackpack: true,
   roles: ["anti-tank", "crowd clear", "objective"],
   source: "Free (base game)",
   score: 9.5,
@@ -3067,6 +3526,8 @@ const STRATAGEM_POOL = [{
   facts: "Closes bug holes and fabricators",
   simEdge: ".~.",
   desc: "Unlocked at the Patriotic Administration Center for at Level 20",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/D/B;u.gg=B/B/S+",
   pubSplit: ".xx"
@@ -3093,31 +3554,17 @@ const STRATAGEM_POOL = [{
   source: "Force of Law",
   score: 5.3,
   note: "A backpack drone with a mounted arc thrower that fires on its own. It does not ask, and the arcs do not distinguish friends.",
-  facts: "Arcs to 6 targets",
+  facts: "Arcs to 2 targets",
   desc: "Backpack Stratagem that provides support to the player by automatically targeting enemies with its mounted arc thrower",
+  roles: ["generalist"],
   pubSrc: "u.gg=C/B/B"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
 {
-  id: "ar-59-suppressor",
-  grades: "C/C/B",
-  simGrades: "B/B/A",
-  sources: 4,
-  name: "AR-59 Suppressor",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Redacted Regiment",
-  score: 4.8,
-  note: "A suppressed assault rifle at 80 damage and 850 rpm — the same pattern as the standard rifle, without announcing your position.",
-  simEdge: "..~",
-  desc: "Primary Assault Rifle, equipped with a suppressor for silent takedowns, especially suited to Stealth playstyles",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=C/C/B;u.gg=B/B/B"
-}, {
   id: "ax-las-5-rover",
   grades: "B/S/A",
-  simGrades: "S/S/S",
-  sources: 2,
+  simGrades: "S/A/S",
+  sources: 1,
   name: "AX/LAS-5 Rover",
   cat: "backpack",
   source: "Free (base game)",
@@ -3125,6 +3572,9 @@ const STRATAGEM_POOL = [{
   note: "A backpack laser drone that engages nearby targets on its own, recharging between bursts. Infinite ammunition, no target discipline.",
   simEdge: "~~~",
   desc: "Backpack Stratagem that provides fire support fire to the player",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
+  roles: ["generalist"],
   pubSrc: "u.gg=B/S/A"
 }, {
   id: "ax-tx-13-dog-breath",
@@ -3136,6 +3586,11 @@ const STRATAGEM_POOL = [{
   score: 6.3,
   note: "A backpack drone that sprays a chemical agent over nearby ground rather than shooting at anything.",
   desc: "Backpack Stratagem that provides defensive support to the player",
+  simGrades: "B/B/B",
+  simEdge: "~~~",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
+  roles: ["generalist"],
   pubSrc: "u.gg=B/A/B"
 }, {
   id: "b-flam-80-cremator",
@@ -3144,12 +3599,14 @@ const STRATAGEM_POOL = [{
   sources: 4,
   name: "B/FLAM-80 Cremator",
   cat: "support",
+  usesBackpack: true,
   roles: ["anti-tank"],
   source: "Entrenched Division",
   score: 6.8,
   note: "A double-barrelled heavy flamethrower fed from a fuel backpack, AP4. It burns light armour off quickly and reaches nothing far away.",
   desc: "Stratagem that calls down a Support Weapon consisting of a hose-fed, double barreled heavy flamethrower and fuel backpack",
-  simEdge: ".~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=B/S/A;u.gg=A/S+/S+"
 }, {
@@ -3166,6 +3623,8 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   simEdge: "..~",
   desc: "Stratagem that calls down a single disposable large area covering anti-tank Support Weapon",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=S/A/A;u.gg=S+/B/A"
 }, {
   id: "eat-700-expendable-napalm",
@@ -3179,8 +3638,9 @@ const STRATAGEM_POOL = [{
   score: 3.0,
   note: "A disposable launcher that puts down burning ground instead of penetrating armour. One use, then discarded.",
   facts: "Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: ".~.",
   desc: "Unlocked on the 2nd page of the Dust Devils Premium Warbond for 85",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   pubSrc: "GamesRadar=C/B/B;u.gg=B/S/S",
   pubSplit: ".xx"
 }, {
@@ -3190,80 +3650,22 @@ const STRATAGEM_POOL = [{
   sources: 3,
   name: "GL-28 Belt-Fed Grenade Launcher",
   cat: "support",
+  usesBackpack: true,
   roles: ["crowd clear", "objective"],
   source: "Siege Breakers",
   score: 8.7,
   note: "A belt-fed grenade launcher at 320 rpm — sustained explosive fire without switching weapons.",
   facts: "Closes bug holes and fabricators",
   desc: "Unlocked on the 3rd page of the Siege Breakers Premium Warbond for 110",
-  simEdge: "..~",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/D/C;u.gg=A/A/A",
   pubSplit: "xxx"
 }, {
-  id: "las-13-trident",
-  grades: "B/B/B",
-  simGrades: "D/D/D",
-  sources: 4,
-  name: "LAS-13 Trident",
-  cat: "support",
-  roles: ["anti-tank"],
-  source: "Siege Breakers",
-  score: 3.0,
-  note: "An energy shotgun firing a spread of laser pulses, AP2. No reload, and no answer to armour.",
-  desc: "Primary Energy-Based shotgun in Helldivers 2",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=B/B/B;u.gg=A/A/A"
-}, {
-  id: "m6c-socom-pistol",
-  grades: "B/C/C",
-  simGrades: "A/S/S",
-  sources: 3,
-  name: "M6C/SOCOM Pistol",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Obedient Democracy Support Troopers",
-  score: 4.3,
-  note: "The suppressed SOCOM issued as a support weapon — 125 damage at 900 rpm, quiet.",
-  desc: "Secondary Pistol with a suppressor and relatively high damage for silent takedowns, especially suited to Stealth playstyles",
-  simEdge: "..~",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=B/C/C;u.gg=B/B/B"
-}, {
-  id: "m90a-shotgun",
-  grades: "D/B/C",
-  simGrades: "C/D/C",
-  sources: 4,
-  name: "M90A Shotgun",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Obedient Democracy Support Troopers",
-  score: 3.4,
-  note: "The M90A issued as a support weapon: extremely high damage per shell against a very small magazine, at 80 rounds a minute.",
-  desc: "Primary Shotgun, able to inflict extremely high damage per round in exchange for a significantly reduced magazine size",
-  simEdge: "..~",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=C/B/B;u.gg=D/B/C"
-}, {
-  id: "ma5c-assault-rifle",
-  grades: "C/B/B",
-  simGrades: "S/S/A",
-  sources: 4,
-  name: "MA5C Assault Rifle",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Obedient Democracy Support Troopers",
-  score: 6.3,
-  note: "The MA5C pattern in the support slot — AP3 at 90 damage and 640 rpm.",
-  simEdge: "..~",
-  desc: "Primary Assault Rifle",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=B/C/C;u.gg=C/A/A",
-  pubSplit: ".xx"
-}, {
   id: "mgx-42-bullet-storm",
   grades: "C/A/A",
-  simGrades: "A/A/A",
+  simGrades: "B/A/A",
   sources: 3,
   name: "MGX-42 Bullet Storm",
   cat: "support",
@@ -3272,44 +3674,15 @@ const STRATAGEM_POOL = [{
   score: 5.8,
   note: "A pair of disposable miniguns at 1,300 rpm, meant for large numbers of lightly armoured targets. You get two, and then they are gone.",
   desc: "Stratagem which calls down a pair of disposable Support Weapons, specializing in disposing of large quantities of lightly armored targets",
-  simEdge: ".~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=C/A/B;u.gg=B/A/S+",
   pubSplit: "..x"
 }, {
-  id: "p-35-re-educator",
-  grades: "B/B/B",
-  simGrades: "D/D/D",
-  sources: 3,
-  name: "P-35 Re-Educator",
-  cat: "support",
-  roles: ["anti-tank"],
-  source: "Redacted Regiment",
-  score: 3.0,
-  note: "Fires gas darts that disorient rather than damage — 60 a dart with 1 demolition force. The disorientation is the entire point, and it is not something a kill-speed model can credit.",
-  desc: "Secondary Special pistol that fires Gas darts to disorient enemies",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=C/D/C;u.gg=A/S/S",
-  pubSplit: "xxx"
-}, {
-  id: "p-69-veto",
-  grades: "B/B/B",
-  simGrades: "C/D/B",
-  sources: 3,
-  name: "P-69 Veto",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Entrenched Division",
-  score: 3.0,
-  note: "A sidearm with jet-assisted rounds at 105 damage and heavy stagger for the class.",
-  desc: "Secondary Pistol with an internal magazine and jet-assisted rounds, able to inflict high stagger to enemies",
-  simEdge: "..~",
-  pubSrc: "GamesRadar=B/C/C;u.gg=A/A/A",
-  pubSplit: ".xx"
-}, {
   id: "plas-45-epoch",
   grades: "A/B/B",
-  simGrades: "D/C/C",
+  simGrades: "D/C/B",
   sources: 3,
   name: "PLAS-45 Epoch",
   cat: "support",
@@ -3320,12 +3693,14 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Charger, Hulk Bruiser, Hulk Firebomber and others · Closes bug holes and fabricators",
   desc: "Energy-based plasma Support Weapon Stratagem with AP4 armor penetration that scales armor penetration and damage",
   simEdge: ".~.",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=A/B/B;u.gg=S/A/B"
 }, {
   id: "s-11-speargun",
   grades: "S/S/A",
-  simGrades: "C/C/C",
+  simGrades: "B/D/C",
   sources: 3,
   name: "S-11 Speargun",
   cat: "support",
@@ -3335,40 +3710,10 @@ const STRATAGEM_POOL = [{
   note: "Fires a spear that bursts into gas on impact — 650 damage at AP5, one round at a time.",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   desc: "Stratagem which calls down a Support Weapon that fires projectiles with extremely high stagger force and explodes into a cloud of gas",
-  simEdge: "~..",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
   simHeavyUnranked: true,
   pubSrc: "GamesRadar=S/S/A;u.gg=S/S/S"
-}, {
-  id: "sg-97-sweeper",
-  grades: "A/A/A",
-  simGrades: "B/A/B",
-  sources: 3,
-  name: "SG-97 Sweeper",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Superstore",
-  score: 4.8,
-  note: "A flechette shotgun at AP3 — the pellets penetrate where buckshot would not, against a small magazine.",
-  simEdge: "~..",
-  desc: "Primary Shotgun with AP3 armor penetrating flechettes, able to inflict high damage per round in exchange for a significantly reduced magazine size",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=A/A/A;u.gg=A/S/S"
-}, {
-  id: "smg-203-gallant",
-  grades: "C/B/B",
-  simGrades: "A/A/B",
-  sources: 3,
-  name: "SMG-203 Gallant",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Exo Experts",
-  score: 5.8,
-  note: "The Knight rebuilt for penetration: AP3 at 65 damage, still 1,380 rpm. Less damage a round, more of it lands on armour.",
-  desc: "Variant of the MP-98 Knight that sacrifices damage in exchange for AP3 armor penetration",
-  simEdge: ".~~",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=C/C/C;u.gg=B/S/S",
-  pubSplit: ".xx"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
 {
@@ -3377,7 +3722,8 @@ const STRATAGEM_POOL = [{
   simGrades: "A/A/B",
   sources: 3,
   name: "B/MD C4 Pack",
-  cat: "sentry",
+  cat: "support",
+  usesBackpack: true,
   roles: ["anti-tank", "crowd clear", "objective"],
   source: "Redacted Regiment",
   score: 5.8,
@@ -3385,22 +3731,9 @@ const STRATAGEM_POOL = [{
   facts: "One-shots Annihilator Tank, Barrager Tank, Charger and others · Closes bug holes and fabricators · Carry 1",
   simEdge: "~~~",
   desc: "Support Weapon Stratagem backpack filled with bricks of C4 that can be remotely detonated sequentially or all at once",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "GamesRadar=S/A/A;u.gg=S+/S/A"
-}, {
-  id: "tm-1-lure-mine",
-  grades: "A/S/A",
-  simGrades: "S/S/S",
-  sources: 3,
-  name: "TM-1 Lure Mine",
-  cat: "sentry",
-  roles: ["objective"],
-  source: "Redacted Regiment",
-  score: 8.7,
-  note: "Draws enemies in before detonating on proximity for 1,000 damage plus shrapnel. It makes the fight come to a place of your choosing.",
-  facts: "Closes bug holes and fabricators",
-  simEdge: "~~~",
-  desc: "Special Throwable that lures in enemies before proximity detonating with a high damage explosion and shrapnel",
-  pubSrc: "u.gg=A/S/A"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
 {
@@ -3415,22 +3748,9 @@ const STRATAGEM_POOL = [{
   note: "10,000 damage at AP10 with 60 demolition force, on a long call-in. It levels anything structural and does not care who is nearby.",
   desc: "Standard-issue Stratagem, available to all Helldivers regardless of rank",
   facts: "One-shots any heavy target · Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "~~~"
-}, {
-  id: "r-4-hyena",
-  grades: "A/B/B",
-  simGrades: "B/B/C",
-  sources: 1,
-  name: "R-4 Hyena",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Acquisition unknown",
-  score: 6.8,
-  note: "A marksman rifle trading magazine, rate and handling for firepower and incendiary rounds — 220 a shot at AP3.",
-  desc: "Primary Marksman Rifle similar to the R-63CS Diligence Counter Sniper, trading magazine count, fire rate, and handling for greater firepower and incendiary rounds",
-  simEdge: "~..",
-  simHeavyUnranked: true,
-  pubSrc: "u.gg=A/B/B"
+  simEdge: "~~~",
+  simScale: "per use",
+  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire."
 }, {
   id: "sg-88-break-action-shotgun",
   simGrades: "D/D/C",
@@ -3442,7 +3762,8 @@ const STRATAGEM_POOL = [{
   score: 3.0,
   note: "A two-shell break-action found in colonist caches: 65 a pellet, then a manual reload. Field-scavenged rather than issued.",
   desc: "Support Weapon with a 2 shot capacity found on various planets from Super Earth colonists",
-  simEdge: "..~"
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd."
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
 {
@@ -3459,6 +3780,8 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   facts: "Closes bug holes and fabricators",
   desc: "Powerful defensive stratagem able to deploy gas mortar shells onto enemies from range, and behind cover",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=A/B/B"
 }, {
   id: "e-gl-21-grenadier-battlement",
@@ -3474,11 +3797,13 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   facts: "Closes bug holes and fabricators",
   desc: "Emplacement Stratagem that deploys ballistic cover with a mounted Grenade Launcher",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=A/A/A"
 }, {
   id: "exo-55-breakthrough-exosuit",
   grades: "S/S/S",
-  simGrades: "B/B/B",
+  simGrades: "B/D/B",
   sources: 2,
   name: "EXO-55 Breakthrough Exosuit",
   cat: "vehicle",
@@ -3489,6 +3814,8 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   facts: "One-shots Hulk Bruiser, Hulk Firebomber, Hulk Obliterator and others · Closes bug holes and fabricators · Staggers heavy targets",
   desc: "Exosuit Stratagem featuring a heavy flak cannon on the right arm and a massive ballistic shield on the left",
+  simScale: "deployed weapon",
+  simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
   pubSrc: "u.gg=S/S/S+"
 }, {
   id: "m-102-fast-recon-vehicle",
@@ -3503,6 +3830,8 @@ const STRATAGEM_POOL = [{
   note: "A four-wheeled vehicle with a rear-mounted MG-206 Heavy Machine Gun, 2,400 HP of AV3 main body on a 480-second cooldown. The mounted HMG carries four spare magazines with no way to refill them, and passengers can lean out of the doors to use their own weapons, stims and stratagems while it moves.",
   simEdge: "~~~",
   desc: "Unlocked at the Patriotic Administration Center (in the Hangar section) for at Level 25",
+  simScale: "mounted weapon",
+  simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "m-103-supply-frv",
@@ -3517,6 +3846,8 @@ const STRATAGEM_POOL = [{
   note: "A four-wheeled vehicle whose rear carries a supply rack of eight charges, each restoring stims, grenades and ammunition by as much as a standard Resupply. In place of a crewed gun it mounts an automated AR-23P Liberator Penetrator turret, which fires about 120 rounds before one of those eight charges is spent reloading it.",
   simEdge: "~~~",
   desc: "Stratagem that deploys a four-wheeled ground vehicle, equipped with supplies and an automatic turret",
+  simScale: "mounted weapon",
+  simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "m-104-incinerator-frv",
@@ -3532,6 +3863,8 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   desc: "Stratagem that deploys an armored four-wheeled ground vehicle, equipped with a spiked ramming grille and a heavy flamethrower",
   facts: "Closes bug holes and fabricators",
+  simScale: "mounted weapon",
+  simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
   pubSrc: "u.gg=S+/S+/S+"
 }, {
   id: "ms-11-solo-silo",
@@ -3562,6 +3895,8 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   facts: "One-shots Bile Titan, Charger, Charger Behemoth and others · Closes bug holes and fabricators · Staggers heavy targets",
   desc: "Unlocked at the Patriotic Administration Center (in the Hangar section) for at Level 1",
+  simScale: "mounted weapon",
+  simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
   pubSrc: "u.gg=S+/B/B"
 }];
 const SHIP_MODULES = [
@@ -3830,8 +4165,8 @@ const FIG = {
   factionMoved: "79 of 94",
   factionHold: "15 of 94",
   simBands: "six",
-  simSubstituted: "2 of 151",
-  borderlineItems: "95 of 151",
+  simSubstituted: "2 of 152",
+  borderlineItems: "101 of 152",
   factionExample: "the G-12 High Explosive grades S against Bots and D against Bugs",
   tiePairs: "84 of 93",
   tiePct: "90%",
@@ -3857,10 +4192,10 @@ const FIG = {
   corrSecondaryN: "16",
   corrSupportN: "26",
   validateChecks: "201",
-  validationLayers: "thirteen",
-  guideNoMeasured: "122 of the 204",
-  guideNoWiki: "14",
-  guideNoSim: "47 of the 204"
+  validationLayers: "fifteen",
+  guideNoMeasured: "121 of the 202",
+  guideNoWiki: "13",
+  guideNoSim: "50 of the 202"
 };
 // ==== END GENERATED FIGURES ====
 
@@ -3972,7 +4307,7 @@ function MethodTab() {
   }), /*#__PURE__*/React.createElement(MethodPoint, {
     q: "Why do some items have no simulated grade?",
     short: /*#__PURE__*/React.createElement(React.Fragment, null, "Armour, boosters, ship modules and melee weapons are ", /*#__PURE__*/React.createElement("b", null, "not simulated"), ", because there is nothing to simulate \u2014 they are flat improvements, or they depend on a mechanic the model does not have. Those are graded editorially and marked differently."),
-    detail: /*#__PURE__*/React.createElement(React.Fragment, null, "Melee is its own category for a specific reason: it requires physical contact, and the model charges nothing for closing that distance. The CQC-20 Breaching Hammer carries a 2200-damage explosion and graded top of the support weapons until it was separated out \u2014 being the best melee weapon does not make it a better support weapon. Ship module priority is derived from the stratagems each module improves: a module that lifts a top-tier stratagem is worth more than one lifting a weak category.")
+    detail: /*#__PURE__*/React.createElement(React.Fragment, null, "Melee is unsimulated for a specific reason: it requires physical contact, and the model charges nothing for closing that distance \u2014 so a melee grade would describe the model rather than the weapon. It is ", /*#__PURE__*/React.createElement("b", null, "not"), " filed under a category of its own, because the game has no melee slot: the wiki publishes each one as a Secondary or a Support Weapon, and that is where this guide lists them, tagged with the ", /*#__PURE__*/React.createElement("b", null, "Melee"), " weapon type so they still gather in one place. The CQC-20 Breaching Hammer shows why the grade is withheld rather than the item: it carries a 2200-damage explosion and would rank top of the support weapons on that alone, which says more about what the model counts than about the hammer. Ship module priority is derived from the stratagems each module improves: a module that lifts a top-tier stratagem is worth more than one lifting a weak category.")
   }), /*#__PURE__*/React.createElement(MethodPoint, {
     q: "Why do so many items show no MEASURED or WIKI line?",
     short: /*#__PURE__*/React.createElement(React.Fragment, null, "Because a blank is deliberate. ", /*#__PURE__*/React.createElement("b", null, FIG.guideNoMeasured, " entries carry no MEASURED line"), " \u2014 the item is either not simulated at all, or nothing it does was decisive enough to name beside its badge \u2014 and ", /*#__PURE__*/React.createElement("b", null, FIG.guideNoWiki, " carry no WIKI line"), ", because the snapshot holds no description worth quoting. An empty line means there was nothing worth saying, not that nobody looked.")
@@ -4702,9 +5037,21 @@ const ENEMY_INDEX = {
 
 // All 23 live Warbonds, confirmed via helldivers.wiki.gg (Category:Warbonds, Jul 2026).
 const ALL_WARBONDS = ["Helldivers Mobilize", "Polar Patriots", "Cutting Edge", "Steeled Veterans", "Democratic Detonation", "Viper Commandos", "Freedom's Flame", "Chemical Agents", "Truth Enforcers", "Urban Legends", "Servants of Freedom", "Borderline Justice", "Masters of Ceremony", "Force of Law", "Control Group", "Dust Devils", "Python Commandos", "Redacted Regiment", "Siege Breakers", "Entrenched Division", "Exo Experts", "Righteous Revenants", "Obedient Democracy Support Troopers"];
+
+// THE SORT KEY IS THE SIMULATED GRADE, FALLING BACK TO THE PUBLISHED ONE — the same rule
+// `itemGradeValue` states and documents. This read `item.grades` ALONE, so the app carried two
+// different orderings and never said so: Warbond Targets ranked by the simulation while My Unlocks
+// and Stratagems ranked by outlet consensus, which is why the same two items could swap places
+// between tabs. The owner noticed the lists looked third-party-ordered; they were.
+//
+// PREFERRING THE SIMULATION IS THE WHOLE POINT OF THE TOOL. It is the measurement this project can
+// defend down to a number, and it covers items no outlet grades. The published letters remain on
+// screen beside it — the two badges are still never merged (BADGE_DESIGN.md §5); only the ORDER is
+// decided here, and an order has to pick one.
 function getFactionLetter(item, enemy) {
-  if (!enemy || !item.grades) return null;
-  const parts = item.grades.split("/").map(s => s.trim());
+  const g = item.simGrades || item.grades;
+  if (!enemy || !g) return null;
+  const parts = g.split("/").map(s => s.trim());
   return parts[ENEMY_INDEX[enemy]] ?? null;
 }
 function getFactionScore(item, enemy) {
@@ -4716,8 +5063,14 @@ function getFactionScore(item, enemy) {
   // no outlet either, and `undefined - undefined` is NaN, which a comparator silently reads as
   // "these two are equal" rather than as an error.
   const base = typeof item.score === "number" ? item.score : 0;
-  if (!letter) return base;
-  return LETTER_VALUES[letter] ?? base;
+  if (letter) return LETTER_VALUES[letter] ?? base;
+  // NO FACTION SELECTED IS THE DEFAULT VIEW, AND IT WAS STILL RANKING BY THE EDITORIAL SCORE.
+  // getFactionLetter returns null without an enemy, so every blended list fell through to
+  // `item.score` — the hand-authored number — while only the faction views used the simulation.
+  // The tool shipped with its own measurement applied to the views nobody lands on first.
+  // itemGradeValue already knows how to blend: it averages the three simulated letters.
+  const blended = itemGradeValue(item, enemy);
+  return blended === null ? base : blended;
 }
 
 // Achievability tiers for Armor recommendations, personalized to what the player has already
@@ -4763,7 +5116,9 @@ function SimBadge({
   enemy,
   simEdge,
   simHeavyUnranked,
-  simUnmeasured
+  simUnmeasured,
+  simScale,
+  simScaleNote
 }) {
   if (!simGrades) return null;
   // A BORDERLINE BAND EDGE IS SHOWN, not hidden. Most adjacent pairs are statistically
@@ -4803,7 +5158,21 @@ function SimBadge({
       marginLeft: 2
     },
     title: `One input to this grade is a stand-in: the corpus publishes no ${simUnmeasured} ` + "for this item, so the model substitutes one. The grade is still measured, and a " + "stand-in can move it in either direction. See the HOW RATINGS WORK tab."
-  }, "*") : null);
+  }, "*") : null, simScale ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      opacity: 0.7,
+      marginLeft: 4,
+      fontWeight: 400,
+      letterSpacing: 0
+    },
+    title: simScaleNote || undefined
+  }, simScale) : null, simHeavyUnranked ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      opacity: 0.8,
+      marginLeft: 3
+    },
+    title: "Its position against HEAVY targets is not a firm rank: it moves by more than two " + "places across the uncalibrated ballistic fall-off sweep, so that ordering " + "describes an assumed constant rather than this weapon. Read its one-shot " + "capability for the anti-heavy question. See the HOW RATINGS WORK tab."
+  }, "\xB0") : null);
 }
 
 // The published-rating badge. `sources` counts how many ORIGINAL third-party OUTLETS mention it —
@@ -4942,7 +5311,9 @@ function GradeBadge({
   simGrades,
   simEdge,
   simHeavyUnranked,
-  simUnmeasured
+  simUnmeasured,
+  simScale,
+  simScaleNote
 }) {
   const parsed = parsePubSrc(pubSrc);
   // ONE LABEL, ONE NUMBER. This badge briefly printed both counts at once —
@@ -4979,7 +5350,9 @@ function GradeBadge({
     enemy: enemy,
     simEdge: simEdge,
     simHeavyUnranked: simHeavyUnranked,
-    simUnmeasured: simUnmeasured
+    simUnmeasured: simUnmeasured,
+    simScale: simScale,
+    simScaleNote: simScaleNote
   }), grades ? /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
@@ -5126,7 +5499,7 @@ function resolveArmourPiece(perk, cls, unlockedWarbonds) {
 // text beside it; it is just no longer the thing you navigate by.
 //
 // The mode is chosen from the DATA, not from a list of category names: `wtype` is emitted only
-// where the wiki publishes a `weapon_type`, which today is exactly the 62 primaries and secondaries.
+// where the wiki publishes a `weapon_type`, which today is 91 primaries, secondaries, throwables and melee weapons.
 // A hand-maintained list of which categories get which filter would drift the moment one is added
 // (the same failure `guide_unsimulated` fixed by reading the guide instead of naming four
 // categories). ALL of them must carry it before the mode switches — a partial roll-out silently
@@ -5346,7 +5719,11 @@ const CAT_COLORS = {
 const STRAT_TYPES = ["eagle", "orbital", "support", "backpack", "sentry", "vehicle"];
 function scoreStratCandidate(item, selected, enemy) {
   const selCats = selected.map(s => s.cat);
-  const selRoles = new Set(selected.flatMap(s => s.roles));
+  // `s.roles || []` — the melee items now in this pool carry no `roles`, and flatMap over
+  // undefined yields [undefined], seeding the set with it. Harmless while role values are strings,
+  // and flatly contradicted by the comment below asserting an absent field is read as absent
+  // EVERYWHERE. The four melee support weapons are exactly the entries that made it reachable.
+  const selRoles = new Set(selected.flatMap(s => s.roles || []));
   let bonus = 0,
     warn = null;
   if (item.cat === "eagle" && selCats.includes("eagle")) {
@@ -5436,7 +5813,7 @@ function App() {
       } catch {}
       try {
         const ra = await window.storage.get("hd2-armor-weight");
-        if (ra?.value && ARMOR_CLASSES.includes(ra.value)) setArmorWeight(ra.value);
+        if (ra?.value && ARMOR_CLASSES.includes(ra.value)) setArmorWeightState(ra.value); /* the raw setter: setArmorWeight persists, so loading re-wrote the value it had just read */
       } catch {}
       try {
         const r2 = await window.storage.get("hd2-strat-slots");
@@ -5505,15 +5882,85 @@ function App() {
       await window.storage.set("hd2-warbonds", JSON.stringify(next));
     } catch {}
   };
+  // RESET CLEARS EVERY SAVED KEY, not the two it used to. It wrote `hd2-owned` and `hd2-warbonds`
+  // and left the stratagem slots, loadout picks, armour weight and fold state behind, so "RESET"
+  // returned a page that still remembered four things — and the leftovers reappeared as soon as
+  // those tabs re-read them. Driven off SAVE_KEYS so a new key cannot be added and forgotten here.
   const resetAll = async () => {
     setOwned({});
     setUnlockedWarbonds({});
-    try {
-      await window.storage.set("hd2-owned", JSON.stringify({}));
-    } catch {}
-    try {
-      await window.storage.set("hd2-warbonds", JSON.stringify({}));
-    } catch {}
+    for (const k of SAVE_KEYS) {
+      try {
+        await window.storage.set(k, DEFAULTS[k]);
+      } catch {}
+    }
+    if (typeof window !== "undefined") window.location.reload();
+  };
+
+  // EXPORT / IMPORT EXISTS BECAUSE localStorage IS NOT A PLACE TO KEEP SOMETHING YOU CARE ABOUT.
+  // It is per-browser and per-origin: it does not follow you to another machine, it does not survive
+  // a browser set to clear site data on exit, and the copy you build reading the file locally is a
+  // DIFFERENT origin from the same file served by GitHub Pages — so opening the published page
+  // shows an empty checklist even though "your" data is right there on disk. A file you own is the
+  // only form of this that is actually yours.
+  const exportSave = async () => {
+    const data = {};
+    for (const k of SAVE_KEYS) {
+      try {
+        const r = await window.storage.get(k);
+        if (r?.value) data[k] = r.value;
+      } catch {}
+    }
+    const payload = {
+      format: "helldiver-field-manual-save",
+      version: 1,
+      saved: new Date().toISOString(),
+      data
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `helldivers-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  const importSave = file => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let payload;
+      try {
+        payload = JSON.parse(String(reader.result));
+      } catch {
+        payload = null;
+      }
+      // REFUSE A FILE THAT IS NOT ONE OF OURS RATHER THAN PARTIALLY APPLYING IT. Importing whatever
+      // parses would let an unrelated JSON file half-overwrite a real save, and the user would have
+      // no way back — the thing being replaced is the only copy.
+      if (!payload || payload.format !== "helldiver-field-manual-save" || !payload.data) {
+        window.alert("That is not a Field Manual save file — nothing was changed.");
+        return;
+      }
+      // RESTORE, NOT MERGE. Writing only the keys present in the file left every key the exporting
+      // browser had never written holding whatever THIS browser had — so "load my save" silently
+      // kept foreign warbonds, loadout picks and stratagem slots. A save file is a complete
+      // statement of progress; a key it does not mention is a key that was empty.
+      for (const k of SAVE_KEYS) {
+        const v = typeof payload.data[k] === "string" ? payload.data[k] : DEFAULTS[k];
+        try {
+          await window.storage.set(k, v);
+        } catch {}
+      }
+      // Reload rather than re-hydrate every piece of state by hand: the loaders already run on
+      // mount and are the one code path that knows how to read each key.
+      window.location.reload();
+    };
+    reader.readAsText(file);
   };
   const saveSlots = async next => {
     setSlots(next);
@@ -5538,7 +5985,29 @@ function App() {
       await window.storage.set("hd2-loadout-picks", JSON.stringify(next));
     } catch {}
   };
+  // BOOSTERS ARE A SQUAD SLOT, NOT A PERSONAL ONE — the only category here that holds more than
+  // one pick. A booster applies to the whole squad and does not stack, so what matters in the ship
+  // is which FOUR are already called: the question is never "which booster is best" but "which of
+  // the good ones is still unclaimed". Four equal slots, filled in any order, because that is how
+  // the call actually goes — nobody owns slot 1.
+  const BOOSTER_SLOTS = 4;
   const pickLoadout = (category, item) => {
+    if (category === "Booster") {
+      const cur = Array.isArray(loadoutPicks.Booster) ? loadoutPicks.Booster : loadoutPicks.Booster ? [loadoutPicks.Booster] : []; // migrate the old single id
+      // THE ITEM ARRIVES EVEN WHEN IT IS ALREADY PICKED, because for a multi-slot category the
+      // second click MEANS "remove this one" — it does not mean "clear the slot", which is what
+      // `null` means for the single-pick categories. Passing null here made the un-toggle branch
+      // below unreachable: four boosters could be chosen and then never released except by CLEAR,
+      // which wipes all five categories. The call site no longer nulls for Booster.
+      const id = item ? item.id : null;
+      if (!id) return;
+      const next = cur.includes(id) ? cur.filter(x => x !== id) : cur.length >= BOOSTER_SLOTS ? cur : [...cur, id];
+      saveLoadoutPicks({
+        ...loadoutPicks,
+        Booster: next
+      });
+      return;
+    }
     saveLoadoutPicks({
       ...loadoutPicks,
       [category]: item ? item.id : null
@@ -5548,7 +6017,8 @@ function App() {
     Primary: null,
     Secondary: null,
     Throwable: null,
-    Armor: null
+    Armor: null,
+    Booster: []
   });
   const setArchFilter = (category, val) => setLoadoutArchFilter({
     ...loadoutArchFilter,
@@ -5635,6 +6105,43 @@ function App() {
       textAlign: "right"
     }
   }, total, "/", ALL_OWNABLE_IDS.length, " OWNED"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportSave,
+    title: "Download your progress as a file you keep",
+    style: {
+      background: "transparent",
+      border: "1px solid #334155",
+      color: "#64748b",
+      fontSize: 10,
+      letterSpacing: 1,
+      padding: "3px 8px",
+      cursor: "pointer",
+      borderRadius: 3,
+      textTransform: "uppercase"
+    }
+  }, "EXPORT"), /*#__PURE__*/React.createElement("label", {
+    title: "Load a progress file you exported earlier",
+    style: {
+      background: "transparent",
+      border: "1px solid #334155",
+      color: "#64748b",
+      fontSize: 10,
+      letterSpacing: 1,
+      padding: "3px 8px",
+      cursor: "pointer",
+      borderRadius: 3,
+      textTransform: "uppercase"
+    }
+  }, "IMPORT", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "application/json,.json",
+    onChange: e => {
+      importSave(e.target.files?.[0]);
+      e.target.value = "";
+    },
+    style: {
+      display: "none"
+    }
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: resetAll,
     style: {
       background: "transparent",
@@ -5647,7 +6154,18 @@ function App() {
       borderRadius: 3,
       textTransform: "uppercase"
     }
-  }, "RESET")), /*#__PURE__*/React.createElement("div", {
+  }, "RESET")), typeof window !== "undefined" && window.storage && !window.storage.persists && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14,
+      padding: "8px 10px",
+      border: "1px solid #78350f",
+      background: "#1a1206",
+      borderRadius: 4,
+      fontSize: 10,
+      color: "#fbbf24",
+      lineHeight: 1.6
+    }
+  }, /*#__PURE__*/React.createElement("b", null, "This browser is not saving your progress."), " Everything you tick will be lost when you close it \u2014 storage is blocked here (a private window, or a \"clear site data on exit\" setting). Use ", /*#__PURE__*/React.createElement("b", null, "EXPORT"), " before you close the tab, and ", /*#__PURE__*/React.createElement("b", null, "IMPORT"), " to pick it back up."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexWrap: "wrap",
@@ -5818,11 +6336,85 @@ function SelectAllBox({
   }, "\u2713"), someOwned && /*#__PURE__*/React.createElement("span", {
     style: {
       width: 7,
-      height: 2,
+      height: 7,
       background: "#22c55e",
       borderRadius: 1
     }
   }));
+}
+
+// COLLAPSE IS VIEW STATE AND LIVES HERE, not in App. It changes nothing another tab reads, so
+// lifting it would add a prop to five call sites to no purpose. It persists through the same
+// `window.storage` contract as everything else, so a finished Warbond stays folded across sessions
+// — which is the point: this tab is 200-odd rows and the completed ones are the least interesting.
+function useCollapsed() {
+  const touched = React.useRef(false); // set by the toggler; see the read effect
+  const [collapsed, setCollapsed] = useState({});
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("hd2-collapsed");
+        if (r?.value) {
+          const p = JSON.parse(r.value);
+          // DO NOT APPLY THE STORED VALUE OVER A USER ACTION. The WRITE effect is guarded on
+          // `loaded`; this READ was not, so a fold performed before storage resolved was silently
+          // reverted to the stored state — and the now-loaded write effect then PERSISTED the
+          // reversion. The guard below closes the opposite direction only; this closes this one.
+          if (p && typeof p === "object" && !Array.isArray(p) && !touched.current) setCollapsed(p);
+        }
+      } catch {}
+      setLoaded(true);
+    })();
+  }, []);
+  // GUARDED ON `loaded`. Without it the empty initial state is written back before the read
+  // resolves, erasing what was saved — a self-clearing store that looks exactly like one that never
+  // saved at all, which is the failure mode this tab already has enough of.
+  useEffect(() => {
+    if (!loaded) return;
+    (async () => {
+      try {
+        await window.storage.set("hd2-collapsed", JSON.stringify(collapsed));
+      } catch {}
+    })();
+  }, [collapsed, loaded]);
+  return [collapsed, key => {
+    touched.current = true;
+    setCollapsed(c => ({
+      ...c,
+      [key]: !c[key]
+    }));
+  }];
+}
+function Chevron({
+  open,
+  onClick,
+  label
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    role: "button",
+    "aria-expanded": open ? "true" : "false",
+    "aria-label": label,
+    title: label,
+    onClick: e => {
+      e.stopPropagation();
+      onClick();
+    },
+    style: {
+      width: 14,
+      height: 14,
+      flexShrink: 0,
+      cursor: "pointer",
+      color: "#64748b",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 9,
+      userSelect: "none",
+      transform: open ? "rotate(90deg)" : "none",
+      transition: "transform 0.12s"
+    }
+  }, "\u25B6");
 }
 function UnlocksTab({
   owned,
@@ -5838,6 +6430,7 @@ function UnlocksTab({
     (grouped[src] = grouped[src] || []).push(item);
   });
   const warbondsOwnedCount = ALL_WARBONDS.filter(w => unlockedWarbonds[w]).length;
+  const [collapsed, toggleCollapsed] = useCollapsed();
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TabIntro, {
     items: ["Check off everything you actually own — this is the ONLY place ownership is set.", "Loadout, Stratagems, Warbond Targets, and Ship Modules all read from this list.", "Mark which Warbonds you've unlocked below — Loadout and Stratagems suggestions rank items from your Warbonds above items from ones you don't have yet.", "Grades read Bots/Bugs/Squids — badge color meaning is explained at the bottom of the page."]
   }), /*#__PURE__*/React.createElement("div", {
@@ -5913,6 +6506,7 @@ function UnlocksTab({
   }))), Object.entries(grouped).map(([source, items]) => {
     const ownedCount = items.filter(i => owned[i.id]).length;
     const groupUnlocked = isFreeSource(source) ? true : !!unlockedWarbonds[source];
+    const isOpen = !collapsed[source];
     return /*#__PURE__*/React.createElement("div", {
       key: source,
       style: {
@@ -5925,24 +6519,36 @@ function UnlocksTab({
         gap: 8,
         marginBottom: 8
       }
-    }, /*#__PURE__*/React.createElement(SelectAllBox, {
+    }, /*#__PURE__*/React.createElement(Chevron, {
+      open: isOpen,
+      onClick: () => toggleCollapsed(source),
+      label: `${isOpen ? "Collapse" : "Expand"} ${source}`
+    }), /*#__PURE__*/React.createElement(SelectAllBox, {
       items: items,
       owned: owned,
       setOwnedBulk: setOwnedBulk
     }), /*#__PURE__*/React.createElement("span", {
+      onClick: () => toggleCollapsed(source),
       style: {
         fontSize: 10,
         fontWeight: 700,
         letterSpacing: 2,
         color: "#4ade80",
-        textTransform: "uppercase"
+        textTransform: "uppercase",
+        cursor: "pointer"
       }
     }, source), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: ownedCount === items.length ? "#22c55e" : "#475569"
       }
-    }, ownedCount, "/", items.length), !groupUnlocked && /*#__PURE__*/React.createElement("span", {
+    }, ownedCount, "/", items.length), ownedCount === items.length && items.length > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 8,
+        color: "#22c55e",
+        letterSpacing: 1
+      }
+    }, "COMPLETE"), !groupUnlocked && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 8,
         color: "#78350f",
@@ -5950,7 +6556,7 @@ function UnlocksTab({
       }
     }, "Warbond not marked unlocked above")), /*#__PURE__*/React.createElement("div", {
       style: {
-        display: "flex",
+        display: isOpen ? "flex" : "none",
         flexDirection: "column",
         gap: 6,
         opacity: groupUnlocked ? 1 : 0.4
@@ -6000,7 +6606,9 @@ function UnlocksTab({
       simGrades: item.simGrades,
       simEdge: item.simEdge,
       simHeavyUnranked: item.simHeavyUnranked,
-      simUnmeasured: item.simUnmeasured
+      simUnmeasured: item.simUnmeasured,
+      simScale: item.simScale,
+      simScaleNote: item.simScaleNote
     })))));
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6013,17 +6621,23 @@ function UnlocksTab({
       gap: 8,
       marginBottom: 8
     }
-  }, /*#__PURE__*/React.createElement(SelectAllBox, {
+  }, /*#__PURE__*/React.createElement(Chevron, {
+    open: !collapsed["__modules"],
+    onClick: () => toggleCollapsed("__modules"),
+    label: `${collapsed["__modules"] ? "Expand" : "Collapse"} Ship Modules`
+  }), /*#__PURE__*/React.createElement(SelectAllBox, {
     items: SHIP_MODULES_ORDERED,
     owned: owned,
     setOwnedBulk: setOwnedBulk
   }), /*#__PURE__*/React.createElement("span", {
+    onClick: () => toggleCollapsed("__modules"),
     style: {
       fontSize: 10,
       fontWeight: 700,
       letterSpacing: 2,
       color: "#a78bfa",
-      textTransform: "uppercase"
+      textTransform: "uppercase",
+      cursor: "pointer"
     }
   }, "Ship Modules (Requisition Slips + Samples)"), /*#__PURE__*/React.createElement("span", {
     style: {
@@ -6032,7 +6646,7 @@ function UnlocksTab({
     }
   }, SHIP_MODULES.filter(m => owned[m.id]).length, "/", SHIP_MODULES.length)), /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
+      display: collapsed["__modules"] ? "none" : "flex",
       flexDirection: "column",
       gap: 6
     }
@@ -6130,6 +6744,43 @@ function LoadoutBuilder({
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 14,
+      padding: "8px 10px",
+      border: "1px solid #1e2a3a",
+      borderRadius: 6,
+      background: "#0b0f16"
+    }
+  }, LOADOUT_CATEGORIES.map(cat => {
+    const pool = [...LOADOUT_POOL, ...BOOSTER_ITEMS];
+    const raw = picks[cat];
+    const ids = cat === "Booster" ? Array.isArray(raw) ? raw : raw ? [raw] : [] : raw ? [raw] : [];
+    const names = ids.map(id => (pool.find(p => p.id === id) || {}).name).filter(Boolean);
+    const c = CAT_COLOR_MAP[cat];
+    return /*#__PURE__*/React.createElement("span", {
+      key: cat,
+      style: {
+        fontSize: 9,
+        display: "inline-flex",
+        alignItems: "baseline",
+        gap: 5
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: c,
+        fontWeight: 700,
+        letterSpacing: 1,
+        textTransform: "uppercase"
+      }
+    }, cat, cat === "Booster" ? ` ${names.length}/4` : ""), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: names.length ? "#e2e8f0" : "#475569"
+      }
+    }, names.length ? names.join(", ") : "empty"));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
       alignItems: "center",
       gap: 10,
       marginBottom: 18
@@ -6165,7 +6816,13 @@ function LoadoutBuilder({
     }
   }, "Reordering by ", enemy, "-specific grade")), LOADOUT_CATEGORIES.map(category => {
     const fullPool = [...LOADOUT_POOL, ...BOOSTER_ITEMS];
-    const picked = picks[category] ? fullPool.find(p => p.id === picks[category]) : null;
+    // Booster holds an ARRAY (four squad slots); every other category holds one id. Read
+    // defensively both ways: a save written before boosters became multi-slot still has a bare
+    // string here, and crashing on somebody's existing progress is not an acceptable upgrade.
+    const isBooster = category === "Booster";
+    const pickedIds = isBooster ? Array.isArray(picks.Booster) ? picks.Booster : picks.Booster ? [picks.Booster] : [] : picks[category] ? [picks[category]] : [];
+    const pickedList = pickedIds.map(id => fullPool.find(p => p.id === id)).filter(Boolean);
+    const picked = isBooster ? null : pickedList[0] || null;
     const color = CAT_COLOR_MAP[category];
     // Vocabulary and matching both come from categoryFilters/matchesFilter — see those.
     const inCat = fullPool.filter(p => p.category === category);
@@ -6275,13 +6932,36 @@ function LoadoutBuilder({
     }, ARMOR_CLASSES.map(c => /*#__PURE__*/React.createElement("option", {
       key: c,
       value: c
-    }, c))), picked && /*#__PURE__*/React.createElement("span", {
+    }, c))), isBooster ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        marginLeft: "auto",
+        display: "flex",
+        gap: 4,
+        flexWrap: "wrap"
+      }
+    }, Array.from({
+      length: 4
+    }, (_, i) => {
+      const p = pickedList[i];
+      return /*#__PURE__*/React.createElement("span", {
+        key: i,
+        title: p ? `Slot ${i + 1}: ${p.name} — click it below to unpick` : `Slot ${i + 1}: unclaimed`,
+        style: {
+          padding: "1px 6px",
+          borderRadius: 3,
+          border: `1px solid ${p ? "#f472b666" : "#334155"}`,
+          color: p ? "#f472b6" : "#475569",
+          background: p ? "#f472b60f" : "transparent"
+        }
+      }, p ? p.name : `slot ${i + 1}`);
+    })) : picked ? /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
         color: "#22c55e",
         marginLeft: "auto"
       }
-    }, "\u2713 ", picked.name)), category === "Armor" && /*#__PURE__*/React.createElement("div", {
+    }, "\u2713 ", picked.name) : null), category === "Armor" && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 9,
         color: "#475569",
@@ -6299,10 +6979,10 @@ function LoadoutBuilder({
       }
     }, candidates.map(item => {
       const isOwned = !!owned[item.id];
-      const isPicked = picks[category] === item.id;
+      const isPicked = pickedIds.includes(item.id);
       return /*#__PURE__*/React.createElement("div", {
         key: item.id,
-        onClick: () => pickLoadout(category, isPicked ? null : item),
+        onClick: () => pickLoadout(category, isBooster || !isPicked ? item : null),
         style: {
           padding: "9px 12px",
           borderRadius: 6,
@@ -6338,6 +7018,8 @@ function LoadoutBuilder({
         simEdge: item.simEdge,
         simHeavyUnranked: item.simHeavyUnranked,
         simUnmeasured: item.simUnmeasured,
+        simScale: item.simScale,
+        simScaleNote: item.simScaleNote,
         enemy: effectiveEnemy
       }), /*#__PURE__*/React.createElement("span", {
         style: {
@@ -6438,6 +7120,13 @@ function WarbondTargetsTab({
     rank
   } = computeWarbondOrder(items, unlockedWarbonds, enemy, owned);
   const sorted = [...items].sort((a, b) => {
+    // WHAT YOU CAN ACTUALLY BUY COMES FIRST. Ordering by Warbond rank alone put items from locked
+    // Warbonds above ones the player can spend medals on right now, so the top of a list headed
+    // "what next" was things that are not next — they need a Warbond purchase before the medal
+    // cost even applies. Reachability is a harder gate than desirability and belongs above it.
+    const uA = isWarbondUnlocked(a, unlockedWarbonds) ? 0 : 1;
+    const uB = isWarbondUnlocked(b, unlockedWarbonds) ? 0 : 1;
+    if (uA !== uB) return uA - uB;
     const rA = rank[warbondBaseName(a.source)] ?? 99;
     const rB = rank[warbondBaseName(b.source)] ?? 99;
     if (rA !== rB) return rA - rB;
@@ -6565,7 +7254,9 @@ function WarbondTargetsTab({
       simGrades: item.simGrades,
       simEdge: item.simEdge,
       simHeavyUnranked: item.simHeavyUnranked,
-      simUnmeasured: item.simUnmeasured
+      simUnmeasured: item.simUnmeasured,
+      simScale: item.simScale,
+      simScaleNote: item.simScaleNote
     }), isNext && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9,
@@ -7018,6 +7709,8 @@ function StratagemBuilder({
       simEdge: item.simEdge,
       simHeavyUnranked: item.simHeavyUnranked,
       simUnmeasured: item.simUnmeasured,
+      simScale: item.simScale,
+      simScaleNote: item.simScaleNote,
       enemy: enemy
     }), /*#__PURE__*/React.createElement("span", {
       style: {
