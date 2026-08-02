@@ -368,6 +368,23 @@ if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
 //
 // So the shim PROBES: write a canary, read it back, delete it. `window.storage.persists` is the
 // answer, and the page states it rather than assuming it.
+// WHAT THE PROBE CAN AND CANNOT ANSWER — worth stating, because it set the design of SAVE/LOAD.
+//
+// The probe writes a canary, reads it back, deletes it. That answers "can I write and read RIGHT
+// NOW". It does NOT answer "will this still be here after the browser closes", and those are
+// different questions with different answers. There is no way to ask the second from inside a
+// single session: the only evidence arrives after the session that could have reported it is gone.
+//
+// The owner ticked through the warbonds, closed the browser, reopened, and read `0/232 OWNED`. The
+// probe had passed, so nothing warned them. Nothing was broken at any moment anything was checked.
+// A page opened as a `file://` document has no real origin and browsers commonly discard its
+// storage on close, while reading back perfectly for as long as the tab lives.
+//
+// THE ANSWER IS NOT A CLEVERER PROBE. Browser storage is a convenience that can vanish for reasons
+// the page is not told about and cannot test. SAVE writes a file you keep; LOAD reads it back. That
+// is the durable path, it needs nothing installed and no terminal, and it is the one the buttons
+// name. `persists` below still gates the warning for the case the page CAN see — storage refused
+// outright — and is deliberately not dressed up as a promise about tomorrow.
 if (typeof window !== "undefined" && !window.storage) {
   let persists = false;
   try {
@@ -380,7 +397,7 @@ if (typeof window !== "undefined" && !window.storage) {
   }
   window.storage = {
     persists,
-    // read by the header badge; never assumed true
+    // readable back WITHIN this session; not a durability claim
     get: async key => {
       try {
         const value = window.localStorage.getItem(key);
@@ -5897,7 +5914,10 @@ function App() {
     if (typeof window !== "undefined") window.location.reload();
   };
 
-  // EXPORT / IMPORT EXISTS BECAUSE localStorage IS NOT A PLACE TO KEEP SOMETHING YOU CARE ABOUT.
+  // SAVE / LOAD EXISTS BECAUSE localStorage IS NOT A PLACE TO KEEP SOMETHING YOU CARE ABOUT.
+  // They are named SAVE and LOAD, not EXPORT and IMPORT, because that is what they are for. The
+  // earlier names framed the file as a sideline to browser storage; it is the other way round —
+  // the file is the copy that survives, and storage is the convenience that might not.
   // It is per-browser and per-origin: it does not follow you to another machine, it does not survive
   // a browser set to clear site data on exit, and the copy you build reading the file locally is a
   // DIFFERENT origin from the same file served by GitHub Pages — so opening the published page
@@ -6106,7 +6126,7 @@ function App() {
     }
   }, total, "/", ALL_OWNABLE_IDS.length, " OWNED"), /*#__PURE__*/React.createElement("button", {
     onClick: exportSave,
-    title: "Download your progress as a file you keep",
+    title: "Save your progress to a file you keep",
     style: {
       background: "transparent",
       border: "1px solid #334155",
@@ -6118,7 +6138,7 @@ function App() {
       borderRadius: 3,
       textTransform: "uppercase"
     }
-  }, "EXPORT"), /*#__PURE__*/React.createElement("label", {
+  }, "SAVE"), /*#__PURE__*/React.createElement("label", {
     title: "Load a progress file you exported earlier",
     style: {
       background: "transparent",
@@ -6131,7 +6151,7 @@ function App() {
       borderRadius: 3,
       textTransform: "uppercase"
     }
-  }, "IMPORT", /*#__PURE__*/React.createElement("input", {
+  }, "LOAD", /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: "application/json,.json",
     onChange: e => {
@@ -6165,7 +6185,7 @@ function App() {
       color: "#fbbf24",
       lineHeight: 1.6
     }
-  }, /*#__PURE__*/React.createElement("b", null, "This browser is not saving your progress."), " Everything you tick will be lost when you close it \u2014 storage is blocked here (a private window, or a \"clear site data on exit\" setting). Use ", /*#__PURE__*/React.createElement("b", null, "EXPORT"), " before you close the tab, and ", /*#__PURE__*/React.createElement("b", null, "IMPORT"), " to pick it back up."), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("b", null, "This browser is not saving your progress."), " Everything you tick will be lost when you close it \u2014 storage is blocked here (a private window, or a \"clear site data on exit\" setting). Use ", /*#__PURE__*/React.createElement("b", null, "SAVE"), " before you close the tab, and ", /*#__PURE__*/React.createElement("b", null, "LOAD"), " to pick it back up."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexWrap: "wrap",
