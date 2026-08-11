@@ -434,8 +434,35 @@ if (typeof window !== "undefined" && !window.storage) {
 // per key, and it is not "{}" for all of them — `hd2-strat-slots` is a JSON array and
 // `hd2-armor-weight` is a bare string, not JSON at all. Writing "{}" into the last one stored
 // nonsense the loader survived only because it validates against ARMOR_CLASSES.
+// THE THREE YOU ARE ISSUED. Every Helldiver starts with the AR-23 Liberator, the G-12 High
+// Explosive and the P-2 Peacemaker; they are in `Free (base game)` because they cost nothing, but
+// unlike the rest of that group there is no acquiring to do. Leaving them as unticked boxes asked
+// the owner to record something that is true of everyone before they had done anything, and made
+// the loadout builder treat the starting kit as locked.
+//
+// PERMANENTLY OWNED, NOT DEFAULTED-ON. A default is a starting value a user may change; this is an
+// invariant of the data. So it is enforced at every point ownership is written — the mount loader,
+// both mutators and RESET all pass through `withIssued`, which is the only reason a click that
+// tries to untick one is a no-op rather than a state the app can be in. A default-on checkbox with
+// no enforcement would look identical on load and diverge on the first click.
+//
+// IT IS ALSO WRITTEN DOWN, DELIBERATELY, rather than being re-derived at read time. An always-owned
+// item that is implied by code and absent from storage is missing from every save file the page
+// writes, and a save file that does not state what it restores is not a record of anything: the
+// next version to change this list would silently rewrite history in files already on disk. So the
+// three sit in `DEFAULTS["hd2-owned"]`, are persisted on mount, and round-trip through SAVE/LOAD as
+// data like every other tick. `withIssued` on the way back in makes a file that predates this
+// change (or one hand-edited to drop them) land in the same state as one that does not — the
+// invariant is restated on load rather than trusted from the file.
+const ISSUED_IDS = ["item-liberator", "g-12-high-explosive", "p-2-peacemaker"];
+const ISSUED_OWNED = Object.fromEntries(ISSUED_IDS.map(id => [id, true]));
+const isIssued = id => ISSUED_IDS.indexOf(id) !== -1;
+const withIssued = map => ({
+  ...(map || {}),
+  ...ISSUED_OWNED
+});
 const DEFAULTS = {
-  "hd2-owned": "{}",
+  "hd2-owned": JSON.stringify(ISSUED_OWNED),
   "hd2-warbonds": "{}",
   "hd2-armor-weight": "Medium",
   // FOUR NULLS, NOT AN EMPTY ARRAY. The loader accepts a saved value only when
@@ -1932,7 +1959,7 @@ const LOADOUT_POOL = [
 }, {
   id: "ted-63-dynamite",
   grades: "S/S/A",
-  simGrades: "S/B/D",
+  simGrades: "S/A/D",
   sources: 4,
   name: "TED-63 Dynamite",
   category: "Throwable",
@@ -1989,25 +2016,6 @@ const LOADOUT_POOL = [
   pubSrc: "u.gg=A/A/A"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
-{
-  id: "r-2124-constitution",
-  grades: "D/D/D",
-  simGrades: "D/D/D",
-  sources: 3,
-  name: "R-2124 Constitution",
-  category: "Primary",
-  archetype: "All-Round",
-  source: "Acquisition unknown",
-  score: 3.0,
-  note: "A bolt-action marksman rifle — 180 a shot at AP3, one round at a time at 60 rounds a minute. Deliberately archaic.",
-  desc: "Bolt-action Primary Marksman Rifle reminiscent of pre-Democratic rifles",
-  roles: ["anti-tank"],
-  wtype: "Marksman Rifles",
-  simScale: "kills",
-  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
-  simHeavyUnranked: true,
-  pubSrc: "GamesRadar=C/D/D;u.gg=D/D/D"
-},
 // --- relocated from VEHICLE_ITEMS: the Loadout tab reads LOADOUT_POOL + BOOSTER_ITEMS only ---,
 // --- relocated from VEHICLE_ITEMS: the Loadout tab reads LOADOUT_POOL + BOOSTER_ITEMS only ---
 {
@@ -2210,24 +2218,6 @@ const LOADOUT_POOL = [
   wtype: "Submachine Guns",
   simEdge: ".~."
 }, {
-  id: "r-4-hyena",
-  grades: "A/B/B",
-  simGrades: "B/A/B",
-  sources: 1,
-  name: "R-4 Hyena",
-  category: "Primary",
-  roles: ["generalist"],
-  source: "Acquisition unknown",
-  score: 6.8,
-  note: "A marksman rifle trading magazine, rate and handling for firepower and incendiary rounds — 220 a shot at AP3.",
-  desc: "Primary Marksman Rifle similar to the R-63CS Diligence Counter Sniper, trading magazine count, fire rate, and handling for greater firepower and incendiary rounds",
-  simScale: "kills",
-  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
-  simHeavyUnranked: true,
-  pubSrc: "u.gg=A/B/B",
-  wtype: "Marksman Rifles",
-  simEdge: "~.."
-}, {
   id: "m6c-socom-pistol",
   grades: "B/C/C",
   simGrades: "A/S/S",
@@ -2296,6 +2286,52 @@ const LOADOUT_POOL = [
   simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire.",
   pubSrc: "u.gg=A/S/A",
   wtype: "Special"
+},
+// EVENT & CAMPAIGN REWARDS, LAST IN THE POOL ON PURPOSE. My Unlocks groups by `source` and
+// renders those groups in the order they are first met while walking LOADOUT_POOL then
+// STRATAGEM_POOL — there is no sort. These two are therefore the only lever on where the
+// heading lands, and they are kept here so it lands at the bottom: it is the one group that is
+// not a Warbond, cannot be bought and cannot be worked towards, so it does not belong among the
+// headings that answer 'what should I unlock next'. Both builders sort their own lists, so
+// position here changes nothing but that heading.
+{
+  id: "r-2124-constitution",
+  grades: "D/D/D",
+  simGrades: "D/D/D",
+  sources: 3,
+  name: "R-2124 Constitution",
+  category: "Primary",
+  archetype: "All-Round",
+  source: "Event & Campaign Rewards",
+  acqNote: "Distributed to all present and future Helldivers as of October 27, 2024, along with the DP-00 Tactical armor, to celebrate Liberty Day.",
+  score: 3.0,
+  note: "A bolt-action marksman rifle — 180 a shot at AP3, one round at a time at 60 rounds a minute. Deliberately archaic.",
+  desc: "Bolt-action Primary Marksman Rifle reminiscent of pre-Democratic rifles",
+  roles: ["anti-tank"],
+  wtype: "Marksman Rifles",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "GamesRadar=C/D/D;u.gg=D/D/D"
+}, {
+  id: "r-4-hyena",
+  grades: "A/B/B",
+  simGrades: "B/A/B",
+  sources: 1,
+  name: "R-4 Hyena",
+  category: "Primary",
+  roles: ["generalist"],
+  source: "Event & Campaign Rewards",
+  acqNote: "Awarded to all Helldivers who have participated in any stage of Campaign Celestial Fence on 13th July, 2026.",
+  score: 6.8,
+  note: "A marksman rifle trading magazine, rate and handling for firepower and incendiary rounds — 220 a shot at AP3.",
+  desc: "Primary Marksman Rifle similar to the R-63CS Diligence Counter Sniper, trading magazine count, fire rate, and handling for greater firepower and incendiary rounds",
+  simScale: "kills",
+  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd.",
+  simHeavyUnranked: true,
+  pubSrc: "u.gg=A/B/B",
+  wtype: "Marksman Rifles",
+  simEdge: "~.."
 }];
 
 // MELEE IS NOT A CATEGORY HERE, AND THAT IS A CORRECTION. This list used to carry one, on the
@@ -2487,15 +2523,6 @@ const STRATAGEM_POOL = [{
   desc: "Melee Support Weapon",
   wtype: "Melee"
 }, {
-  id: "cqc-72-entrenchment-tool",
-  sources: 3,
-  name: "CQC-72 Entrenchment Tool",
-  cat: "support",
-  source: "Acquisition unknown",
-  notRated: "Melee is excluded from the simulation by design, not by omission. A contact weapon has no range, no spread, no projectile drag and no engagement window, so the model that rates every other weapon has nothing to measure here — a grade produced from it would describe the model rather than the weapon. This entry therefore carries the published outlet grades only, and no simulated badge.",
-  desc: "Melee Support Weapon that doubles as a shovel",
-  wtype: "Melee"
-}, {
   id: "cqc-9-defoliation-tool",
   sources: 3,
   grades: "D/C/C",
@@ -2510,7 +2537,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "eagle-airstrike",
   grades: "S/S/A",
-  simGrades: "B/C/D",
+  simGrades: "A/C/D",
   sources: 1,
   name: "Eagle Airstrike",
   cat: "eagle",
@@ -2544,7 +2571,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "eagle-500kg",
   grades: "S/S/B",
-  simGrades: "B/B/B",
+  simGrades: "B/B/A",
   sources: 2,
   name: "Eagle 500kg Bomb",
   cat: "eagle",
@@ -2628,7 +2655,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "orb-ops",
   grades: "S/S/S",
-  simGrades: "A/A/A",
+  simGrades: "A/S/A",
   sources: 2,
   name: "Orbital Precision Strike",
   cat: "orbital",
@@ -2883,7 +2910,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "sup-arc",
   grades: "D/C/C",
-  simGrades: "C/C/C",
+  simGrades: "D/C/C",
   sources: 3,
   name: "ARC-3 Arc Thrower",
   cat: "support",
@@ -2903,7 +2930,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "sup-flamethrower",
   grades: "C/A/A",
-  simGrades: "C/C/D",
+  simGrades: "C/D/D",
   sources: 5,
   name: "FLAM-40 Flamethrower",
   cat: "support",
@@ -3012,7 +3039,7 @@ const STRATAGEM_POOL = [{
   grades: "A/A/S",
   simGrades: "D/D/D",
   sources: 1,
-  name: "AX/AR-23 \"Guard Dog\"",
+  name: "AX/AR-23 Guard Dog",
   cat: "backpack",
   source: "Free (base game)",
   roles: ["generalist"],
@@ -3021,7 +3048,8 @@ const STRATAGEM_POOL = [{
   simEdge: "~~~",
   simScale: "deployed weapon",
   simScaleNote: "Rated on what it kills per minute once deployed, on its own, while you do something else.",
-  pubSrc: "u.gg=A/A/S"
+  pubSrc: "u.gg=A/A/S",
+  desc: "Stratagem that calls down a defensive drone that is equipped in the backpack slot"
 }, {
   id: "bp-ballisticshield",
   grades: "B/C/C",
@@ -3646,7 +3674,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "eat-700-expendable-napalm",
   grades: "C/A/A",
-  simGrades: "C/B/D",
+  simGrades: "C/C/D",
   sources: 3,
   name: "EAT-700 Expendable Napalm",
   cat: "support",
@@ -3699,7 +3727,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "plas-45-epoch",
   grades: "A/B/B",
-  simGrades: "D/C/B",
+  simGrades: "D/C/C",
   sources: 3,
   name: "PLAS-45 Epoch",
   cat: "support",
@@ -3717,7 +3745,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "s-11-speargun",
   grades: "S/S/A",
-  simGrades: "B/D/C",
+  simGrades: "C/D/C",
   sources: 3,
   name: "S-11 Speargun",
   cat: "support",
@@ -3736,7 +3764,7 @@ const STRATAGEM_POOL = [{
 {
   id: "b-md-c4-pack",
   grades: "S/A/A",
-  simGrades: "A/A/B",
+  simGrades: "S/A/B",
   sources: 3,
   name: "B/MD C4 Pack",
   cat: "support",
@@ -3753,35 +3781,6 @@ const STRATAGEM_POOL = [{
   pubSrc: "GamesRadar=S/A/A;u.gg=S+/S/A"
 },
 // --- added by emit_missing.py: simulated but previously unlisted ---
-{
-  id: "nux-223-hellbomb",
-  simGrades: "S/S/S",
-  sources: 1,
-  name: "NUX-223 Hellbomb",
-  cat: "support",
-  roles: ["anti-tank", "crowd clear", "objective"],
-  source: "Acquisition unknown",
-  score: 7.8,
-  note: "10,000 damage at AP10 with 60 demolition force, on a long call-in. It levels anything structural and does not care who is nearby.",
-  desc: "Standard-issue Stratagem, available to all Helldivers regardless of rank",
-  facts: "One-shots any heavy target · Closes bug holes and fabricators · Staggers heavy targets",
-  simEdge: "~~~",
-  simScale: "per use",
-  simScaleNote: "Rated per USE — what one call-in or one throw achieves, divided by how long you wait for the next one. Not a rate of fire."
-}, {
-  id: "sg-88-break-action-shotgun",
-  simGrades: "D/D/C",
-  sources: 0,
-  name: "SG-88 Break-Action Shotgun",
-  cat: "support",
-  roles: ["generalist"],
-  source: "Acquisition unknown",
-  score: 3.0,
-  note: "A two-shell break-action found in colonist caches: 65 a pellet, then a manual reload. Field-scavenged rather than issued.",
-  desc: "Support Weapon with a 2 shot capacity found on various planets from Super Earth colonists",
-  simScale: "kills",
-  simScaleNote: "Rated on killing power: time to kill, sustained damage and how well that holds up across a crowd."
-},
 // --- added by emit_missing.py: simulated but previously unlisted ---
 {
   id: "a-gm-17-gas-mortar-sentry",
@@ -3841,7 +3840,7 @@ const STRATAGEM_POOL = [{
   sources: 1,
   name: "M-102 Fast Recon Vehicle",
   cat: "vehicle",
-  roles: ["generalist"],
+  roles: ["anti-tank"],
   source: "Free (base game)",
   score: 8.7,
   note: "A four-wheeled vehicle with a rear-mounted MG-206 Heavy Machine Gun, 2,400 HP of AV3 main body on a 480-second cooldown. The mounted HMG carries four spare magazines with no way to refill them, and passengers can lean out of the doors to use their own weapons, stims and stratagems while it moves.",
@@ -3858,28 +3857,12 @@ const STRATAGEM_POOL = [{
   name: "M-103 Supply FRV",
   cat: "vehicle",
   roles: ["generalist"],
-  source: "Acquisition unknown",
+  source: "Event & Campaign Rewards",
+  acqNote: "Initially available only as an Operational Variation on Basquine VIII, to be granted as a Stratagem Permit on completion of the Census Thunder campaign if Basquine VIII was liberated before Sangis. As of 06-30-2186 Census Thunder completed with Basquine VIII liberated first, and all participating Helldivers were granted a permanent Stratagem Permit for the M-103 Supply FRV.",
   score: 7.3,
   note: "A four-wheeled vehicle whose rear carries a supply rack of eight charges, each restoring stims, grenades and ammunition by as much as a standard Resupply. In place of a crewed gun it mounts an automated AR-23P Liberator Penetrator turret, which fires about 120 rounds before one of those eight charges is spent reloading it.",
   simEdge: "~~~",
   desc: "Stratagem that deploys a four-wheeled ground vehicle, equipped with supplies and an automatic turret",
-  simScale: "mounted weapon",
-  simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
-  pubSrc: "u.gg=S+/S+/S+"
-}, {
-  id: "m-104-incinerator-frv",
-  grades: "S/S/S",
-  simGrades: "S/S/S",
-  sources: 1,
-  name: "M-104 Incinerator FRV",
-  cat: "vehicle",
-  roles: ["anti-tank", "objective"],
-  source: "Acquisition unknown",
-  score: 5.8,
-  note: "An armoured four-wheeled vehicle with a spiked ramming grille and a roof-mounted heavy flamethrower, 2,900 HP of AV3 main body and seating for three rather than four. The flamethrower holds 800 fuel, which is 100 seconds of continuous fire. Its simulated grade is NOT a measurement of that flamethrower: no fire damage figure is published for this platform, so the model runs it at a fallback rate.",
-  simEdge: "~~~",
-  desc: "Stratagem that deploys an armored four-wheeled ground vehicle, equipped with a spiked ramming grille and a heavy flamethrower",
-  facts: "Closes bug holes and fabricators",
   simScale: "mounted weapon",
   simScaleNote: "This grade measures the MOUNTED WEAPON, not the vehicle. Transport, speed, crossing ground and carrying a squad are what a vehicle is for, and none of them are modelled — so read a low grade here as 'the gun on it is weak', never as 'not worth calling in'.",
   pubSrc: "u.gg=S+/S+/S+"
@@ -3901,7 +3884,7 @@ const STRATAGEM_POOL = [{
 }, {
   id: "td-220-bastion-mk-xvi",
   grades: "S/B/B",
-  simGrades: "A/A/A",
+  simGrades: "S/S/S",
   sources: 1,
   name: "TD-220 Bastion MK XVI",
   cat: "vehicle",
@@ -4169,7 +4152,7 @@ const SHIP_MODULES_ORDERED = [...MODULE_CATEGORIES.flatMap(cat => SHIP_MODULES.f
 // check_output.py re-derives each of these from the artefacts and fails if the page
 // and the pipeline disagree — an emitter can still read the wrong field.
 const FIG = {
-  simSweepMoved: "83 of 94",
+  simSweepMoved: "83 of 93",
   windowUnarmoured: "30s",
   windowLight: "5.3s",
   windowHeavy: "0.8s",
@@ -4178,41 +4161,41 @@ const FIG = {
   simEnemies: "81",
   simGrid: "four accuracy levels, five ranges and three group sizes",
   simTrials: "972,000",
-  simFirmDrag: "9 of 94",
-  factionMoved: "79 of 94",
-  factionHold: "15 of 94",
+  simFirmDrag: "9 of 93",
+  factionMoved: "78 of 93",
+  factionHold: "15 of 93",
   simBands: "six",
-  simSubstituted: "2 of 152",
-  borderlineItems: "101 of 152",
+  simSubstituted: "2 of 149",
+  borderlineItems: "99 of 149",
   factionExample: "the G-12 High Explosive grades S against Bots and D against Bugs",
-  tiePairs: "84 of 93",
+  tiePairs: "83 of 92",
   tiePct: "90%",
-  weightMoved: "93 of 94",
+  weightMoved: "92 of 93",
   weightings: "20",
   outletCells: "315",
   outletSame: "30%",
   outletWithin1: "73%",
   outletApart: "27%",
   outletApartCells: "86 cells on 50 items",
-  srcCaptured: "49",
-  srcCurrent: "22",
+  srcCaptured: "48",
+  srcCurrent: "21",
   srcOutdated: "10",
   srcExcluded: "17",
-  srcOriginal: "32",
+  srcOriginal: "31",
   srcOutletsOriginal: "nine",
   srcOutlets: "five",
   srcOutletsN: "5",
-  srcTopOutlet: "u.gg alone wrote 13 of the 22",
+  srcTopOutlet: "u.gg alone wrote 12 of the 21",
   srcOutletNames: "FandomWire, GAMES.GG, GamesRadar, mein-mmo.de, u.gg",
   corrPrimary: "+0.20 against u.gg and +0.01 against GamesRadar",
   corrPrimaryN: "51",
   corrSecondaryN: "16",
   corrSupportN: "26",
-  validateChecks: "201",
-  validationLayers: "fifteen",
-  guideNoMeasured: "121 of the 202",
-  guideNoWiki: "13",
-  guideNoSim: "50 of the 202"
+  validateChecks: "208",
+  validationLayers: "sixteen",
+  guideNoMeasured: "119 of the 198",
+  guideNoWiki: "12",
+  guideNoSim: "49 of the 198"
 };
 // ==== END GENERATED FIGURES ====
 
@@ -4457,8 +4440,20 @@ const WARBOND_TIER = {
   "Superstore": 4,
   // Real-money DLC (MP-98 Knight). Not a Warbond and not reachable by playing, so it sorts last.
   "Super Citizen Edition": 6,
-  // The wiki states no acquisition route for these. Published with the gap named rather than omitted.
-  "Acquisition unknown": 7,
+  // ISSUED FOR AN EVENT OR A CAMPAIGN, AND THE EVENT IS OVER. The R-2124 Constitution (Liberty Day
+  // 2024), the R-4 Hyena (Campaign Celestial Fence) and the M-103 Supply FRV (the Census Thunder
+  // Stratagem Permit) were granted to whoever was there. There is no unlock cycle and no price, so
+  // this is not a buy-order position — it sorts BELOW the real-money DLC deliberately, because
+  // money can still buy the Knight and nothing at all can buy back a campaign that has closed.
+  // Above `Acquisition unknown`, because "we know exactly how this was given out and you either
+  // have it or you do not" is a stronger statement than "the wiki does not say".
+  "Event & Campaign Rewards": 7,
+  // The wiki states no acquisition route for these. Published with the gap named rather than
+  // omitted. NO ITEM CARRIES IT TODAY — the seven that did were resolved: four left the tool
+  // entirely (see roster.NOT_OBTAINABLE) and three became Event & Campaign Rewards. The key stays
+  // because `emit_missing.py` still falls back to this label for an item whose acquisition it
+  // cannot resolve, and a tier missing when that happens is a silent sort default.
+  "Acquisition unknown": 8,
   // Not yet ranked — no tier-list backing found for these, so rather than inventing a buy-order
   // they are pinned to 5, which is identical to the `?? 5` fallback at the sort sites (i.e. this
   // changes no behaviour, it just stops them relying on an implicit default). Give them a real
@@ -5075,10 +5070,16 @@ function getFactionScore(item, enemy) {
   const letter = getFactionLetter(item, enemy);
   // AN ITEM THIS PROJECT DOES NOT SCORE SORTS LAST, RATHER THAN SORTING BY `undefined`. Melee
   // entries carry no `score` on purpose — there is no simulation to derive one from, and inventing
-  // a sort key is the fabricated number check_output's scoreless rule exists to prevent. Nine of
-  // the ten are ranked by their published letter above; the CQC-72 Entrenchment Tool is graded by
-  // no outlet either, and `undefined - undefined` is NaN, which a comparator silently reads as
-  // "these two are equal" rather than as an error.
+  // a sort key is the fabricated number check_output's scoreless rule exists to prevent. All nine
+  // are ranked by their published letter above, so the `base` fallback fires on none of them
+  // today — it is kept because the case it covers is an entry with NEITHER a score NOR an outlet
+  // letter, and `undefined - undefined` is NaN, which a comparator silently reads as "these two
+  // are equal" rather than as an error.
+  //
+  // IT USED TO NAME THE CQC-72 ENTRENCHMENT TOOL as the live example, and there were ten melee
+  // items rather than nine. That item is gone: its wiki Procurement section describes a weapon
+  // found on the ground at Minor Places of Interest and not equippable, so `roster.NOT_OBTAINABLE`
+  // refuses it. Retaining the name would have left the comment citing an item no reader could find.
   const base = typeof item.score === "number" ? item.score : 0;
   if (letter) return LETTER_VALUES[letter] ?? base;
   // NO FACTION SELECTED IS THE DEFAULT VIEW, AND IT WAS STILL RANKING BY THE EDITORIAL SCORE.
@@ -5194,7 +5195,7 @@ function SimBadge({
 
 // The published-rating badge. `sources` counts how many ORIGINAL third-party OUTLETS mention it —
 // a coverage figure, not a vote count, and capped at 5 because that is how many outlets wrote the
-// 22 current pages. It counted PAGES until an audit found the Scout armour reading 13, of which 11
+// 21 current pages. It counted PAGES until an audit found the Scout armour reading 13, of which 11
 // were u.gg footer links to a site called "Fantasy Football Scout". The GRADE is the equal-weight
 // blend of the outlets publishing a structured per-faction grade — u.gg and GamesRadar — and the
 // badge says how many it averaged rather than letting one opinion read as consensus.
@@ -5258,6 +5259,41 @@ function ItemFacts({
       letterSpacing: 0.5
     }
   }, "MEASURED "), facts);
+}
+
+// A FIFTH REGISTER: HOW THE ITEM WAS GIVEN OUT, in the wiki's own words.
+//
+// It exists because `source` is a single word doing two jobs. For a Warbond it is a complete
+// answer — "Steeled Veterans" tells you where to spend medals. For the three Event & Campaign
+// Rewards it is a category name and nothing else: it cannot say that the Constitution arrived on
+// Liberty Day 2024, or that the Supply FRV permit was settled by which planet fell first. That
+// detail is the whole content of their acquisition and it had nowhere to go, so the entries
+// carried `source: "Acquisition unknown"` instead — a gap standing in for a documented fact.
+//
+// A REGISTER OF ITS OWN RATHER THAN A LONGER `note`. The three prose fields on an entry are kept
+// apart by PROVENANCE, which is the discipline that makes any of them readable: `note` is this
+// project's editorial judgement, `desc` is the wiki quoted (and REWRITTEN by emit_desc.py on every
+// run, so nothing hand-authored can survive there), `facts` is measured. An acquisition quotation
+// is none of those three, and folding it into `note` would launder a citation into an opinion —
+// the exact swap the WIKI register was introduced to stop.
+function ItemAcquire({
+  acqNote
+}) {
+  if (!acqNote) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "#64748b",
+      marginTop: 3
+    },
+    title: "How this item was distributed, quoted from helldivers.wiki.gg. Not a Warbond unlock \u2014 there is no page to buy it from."
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#4ade80",
+      fontWeight: 700,
+      letterSpacing: 0.5
+    }
+  }, "ACQUIRED "), acqNote);
 }
 
 // A FOURTH REGISTER: the stated reason an item has no simulated grade at all. Absence of a SimBadge
@@ -5426,8 +5462,27 @@ function isFreeSource(source) {
 
 // Free/base-game items are always "unlocked" by definition (no Warbond gates them).
 // For everything else, check the toggle set in MY UNLOCKS.
+// NOT EVERY SOURCE IS A WARBOND, AND THE ONES THAT ARE NOT HAVE NO UNLOCK TO WAIT FOR.
+//
+// `Superstore`, `Super Citizen Edition` and `Event & Campaign Rewards` are acquisition routes, not
+// Warbonds: you buy a Superstore set with Super Credits, the Edition came with a purchase, and the
+// event items were issued on a date that has passed. None of them has a page in MY UNLOCKS' Warbond
+// list, so `unlockedWarbonds[source]` was permanently `undefined` for all three — which read as
+// LOCKED. Every one of their sections carried "Warbond not marked unlocked above" beside a Warbond
+// that does not exist, and rendered at `opacity: 0.4` forever, with no tick that could clear it.
+// `Free (base game)` was spared only because it had been special-cased by name.
+//
+// THE TEST IS NOW DERIVED, NOT A SECOND HAND LIST. A source is Warbond-gated exactly when its base
+// name is in `ALL_WARBONDS`. That keeps `Helldivers Mobilize — DP-40 Hero of the Federation` gated
+// on Helldivers Mobilize (its base name IS in the list), ungates the four that are not Warbonds,
+// and needs no edit when a Warbond is added — `qc.py:120` already fails if any item's source does
+// not resolve to ALL_WARBONDS/Free/Superstore/DLC, so the set this reads cannot drift unnoticed.
+// A hand-maintained "these are not Warbonds" list would have been the third copy of that fact.
+function isWarbondGated(source) {
+  return ALL_WARBONDS.includes(warbondBaseName(source));
+}
 function isWarbondUnlocked(item, unlockedWarbonds) {
-  if (isFreeSource(item.source)) return true;
+  if (!isWarbondGated(item.source)) return true;
   return !!unlockedWarbonds[warbondBaseName(item.source)];
 }
 
@@ -5772,7 +5827,10 @@ function getEligibleStratPool(pool, selected) {
   });
 }
 function App() {
-  const [owned, setOwned] = useState({});
+  // Seeded with the issued three so the FIRST render already shows them owned. Waiting for the
+  // mount effect would flash three unticked boxes and, for one frame, tell the loadout builder the
+  // starting kit is locked.
+  const [owned, setOwned] = useState(withIssued({}));
   const [unlockedWarbonds, setUnlockedWarbonds] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState("unlocks");
@@ -5809,6 +5867,7 @@ function App() {
     (async () => {
       try {
         const r = await window.storage.get("hd2-owned");
+        let next = withIssued({});
         if (r?.value) {
           const p = JSON.parse(r.value);
           if (p && typeof p === "object" && !Array.isArray(p)) {
@@ -5817,9 +5876,17 @@ function App() {
             // must not silently lose it. Ticks are user data; dropping them is not a cosmetic change.
             if (p["item-medkit-light"] && !p["item-medkit-medium"]) p["item-medkit-medium"] = true;
             delete p["item-medkit-light"];
-            setOwned(p);
+            next = withIssued(p);
           }
         }
+        setOwned(next);
+        // PERSISTED HERE, NOT ONLY IN `DEFAULTS`. SAVE reads storage rather than React state, so a
+        // player who saves before ticking anything would otherwise write a file with no `hd2-owned`
+        // key at all — the issued three restored only by the import fallback, which is exactly the
+        // "silently dropped from the file" case. One idempotent write on mount closes it.
+        try {
+          await window.storage.set("hd2-owned", JSON.stringify(next));
+        } catch {}
       } catch {}
       try {
         const rw = await window.storage.get("hd2-warbonds");
@@ -5865,10 +5932,13 @@ function App() {
     })();
   }, []);
   const toggleOwned = async id => {
-    const next = {
+    // An issued item has no OFF state to toggle to. Returning early rather than writing the same
+    // value back keeps the no-op genuinely free of side effects — no re-render, no storage write.
+    if (isIssued(id)) return;
+    const next = withIssued({
       ...owned,
       [id]: !owned[id]
-    };
+    });
     setOwned(next);
     try {
       await window.storage.set("hd2-owned", JSON.stringify(next));
@@ -5877,6 +5947,10 @@ function App() {
   // Bulk set for the per-category "check all" boxes. One state update and one storage write for
   // the whole group — doing this by looping toggleOwned would race, since each call rebuilds
   // `next` from the same stale `owned` and the last write would clobber the rest.
+  // `withIssued` after the loop, not a filter inside it: clearing `Free (base game)` deletes the
+  // three and they are put straight back, so "clear the group" clears everything the player can
+  // actually own and nothing they cannot. Doing it as a skip inside the loop would work today and
+  // break the moment a second caller passes ids from somewhere else.
   const setOwnedBulk = async (ids, value) => {
     const next = {
       ...owned
@@ -5884,9 +5958,9 @@ function App() {
     ids.forEach(id => {
       if (value) next[id] = true;else delete next[id];
     });
-    setOwned(next);
+    setOwned(withIssued(next));
     try {
-      await window.storage.set("hd2-owned", JSON.stringify(next));
+      await window.storage.set("hd2-owned", JSON.stringify(withIssued(next)));
     } catch {}
   };
   const toggleWarbond = async name => {
@@ -5904,7 +5978,9 @@ function App() {
   // returned a page that still remembered four things — and the leftovers reappeared as soon as
   // those tabs re-read them. Driven off SAVE_KEYS so a new key cannot be added and forgotten here.
   const resetAll = async () => {
-    setOwned({});
+    // RESET returns the page to a FRESH state, and a fresh Helldiver already has these three.
+    // `DEFAULTS["hd2-owned"]` writes the same thing to storage below, so the two agree.
+    setOwned(withIssued({}));
     setUnlockedWarbonds({});
     for (const k of SAVE_KEYS) {
       try {
@@ -5925,7 +6001,13 @@ function App() {
   // only form of this that is actually yours.
   const exportSave = async () => {
     const data = {};
+    // EVERY KEY IS WRITTEN, EVEN AN UNTOUCHED ONE. This used to omit a key storage had no value
+    // for, which made the file's meaning depend on the importer's fallback table rather than on
+    // the file — and the moment `DEFAULTS` gains a non-empty entry (it now has one: the three
+    // issued items) an omitted key stops meaning "empty" and starts meaning "whatever the next
+    // version decides". A save states its whole subject.
     for (const k of SAVE_KEYS) {
+      data[k] = DEFAULTS[k];
       try {
         const r = await window.storage.get(k);
         if (r?.value) data[k] = r.value;
@@ -6525,7 +6607,9 @@ function UnlocksTab({
     }, name));
   }))), Object.entries(grouped).map(([source, items]) => {
     const ownedCount = items.filter(i => owned[i.id]).length;
-    const groupUnlocked = isFreeSource(source) ? true : !!unlockedWarbonds[source];
+    // Same rule as `isWarbondUnlocked`, asked of the group rather than the item: a section is
+    // gated only if its heading names a real Warbond. See `isWarbondGated`.
+    const groupUnlocked = !isWarbondGated(source) ? true : !!unlockedWarbonds[source];
     const isOpen = !collapsed[source];
     return /*#__PURE__*/React.createElement("div", {
       key: source,
@@ -6586,13 +6670,19 @@ function UnlocksTab({
       onClick: () => toggleOwned(item.id),
       style: {
         display: "flex",
-        alignItems: "center",
-        gap: 10,
+        flexDirection: "column",
+        gap: 3,
         padding: "8px 12px",
         background: owned[item.id] ? "#0f1a12" : "#0d1117",
         border: `1px solid ${owned[item.id] ? "#1a3a20" : "#1e2a3a"}`,
         borderRadius: 6,
-        cursor: "pointer"
+        cursor: isIssued(item.id) ? "default" : "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -6618,7 +6708,17 @@ function UnlocksTab({
         color: owned[item.id] ? "#475569" : "#e2e8f0",
         textDecoration: owned[item.id] ? "line-through" : "none"
       }
-    }, item.name), /*#__PURE__*/React.createElement(GradeBadge, {
+    }, item.name), isIssued(item.id) && /*#__PURE__*/React.createElement("span", {
+      title: "Issued to every Helldiver at enlistment. There is nothing to unlock, so this one is not yours to untick.",
+      style: {
+        fontSize: 8,
+        color: "#22c55e",
+        letterSpacing: 1,
+        border: "1px solid #1a3a20",
+        borderRadius: 3,
+        padding: "1px 4px"
+      }
+    }, "ISSUED"), /*#__PURE__*/React.createElement(GradeBadge, {
       grades: item.grades,
       pubSrc: item.pubSrc,
       pubSplit: item.pubSplit,
@@ -6629,6 +6729,8 @@ function UnlocksTab({
       simUnmeasured: item.simUnmeasured,
       simScale: item.simScale,
       simScaleNote: item.simScaleNote
+    })), /*#__PURE__*/React.createElement(ItemAcquire, {
+      acqNote: item.acqNote
     })))));
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7087,6 +7189,8 @@ function LoadoutBuilder({
         }
       }, item.note), /*#__PURE__*/React.createElement(ItemDesc, {
         desc: item.desc
+      }), /*#__PURE__*/React.createElement(ItemAcquire, {
+        acqNote: item.acqNote
       }), /*#__PURE__*/React.createElement(ItemFacts, {
         facts: item.facts
       }), /*#__PURE__*/React.createElement(ItemNotRated, {
@@ -7128,7 +7232,30 @@ function WarbondTargetsTab({
   unlockedWarbonds,
   enemy
 }) {
-  const items = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS].filter(i => !isFreeSource(i.source));
+  // ONLY ITEMS THAT ACTUALLY COME FROM A WARBOND. This page answers one question — how to spend
+  // Super Credits (on Warbonds) and Requisition Slips (on the items below) — so an item you cannot
+  // reach with either currency does not belong in the ranking, however good it is.
+  //
+  // Owner: "Warbond Targets prioritizes how Super Credits ... and Requisition Slips ... are spent
+  // ... I just don't want to confuse the function and purpose of Warbond Targets page with direct
+  // purchase items like that."
+  //
+  // Three acquisition routes leave by this rule, and each for the same reason rather than by name:
+  //   Superstore              bought outright with Super Credits, not unlocked by a Warbond
+  //   Super Citizen Edition   a real-money edition purchase
+  //   Event & Campaign Rewards  issued on a date that has passed; not purchasable at all
+  // They remain in MY UNLOCKS (tick what you own) and in LOADOUT (they still compete for a slot),
+  // and they keep their simulated and third-party grades there — which is what someone deciding
+  // whether to BUY a Superstore weapon actually needs to read.
+  //
+  // DERIVED FROM `ALL_WARBONDS`, NOT A SECOND EXCLUSION LIST. The predicate is `isWarbondGated`,
+  // the same one MY UNLOCKS uses to decide whether a section can be locked at all, so the two pages
+  // cannot drift into disagreeing about what a Warbond is. A hand-written
+  // `["Superstore", "Super Citizen Edition", ...]` here would be the third copy of that fact and
+  // would need editing every time an acquisition route is added. `isFreeSource` is no longer needed
+  // in this filter and is not merely implied by it: `Free (base game)` is not in ALL_WARBONDS, so
+  // the new predicate excludes it for the same structural reason it excludes the other three.
+  const items = [...LOADOUT_POOL, ...BOOSTER_ITEMS, ...VEHICLE_ITEMS].filter(i => isWarbondGated(i.source));
   // Order is COMPUTED from what you own and who you are fighting — see computeWarbondOrder. It
   // still does not reshuffle as you tick items off; only unlocking a warbond or switching faction
   // moves anything.
@@ -7296,6 +7423,8 @@ function WarbondTargetsTab({
       }
     }, item.note), /*#__PURE__*/React.createElement(ItemDesc, {
       desc: item.desc
+    }), /*#__PURE__*/React.createElement(ItemAcquire, {
+      acqNote: item.acqNote
     }), /*#__PURE__*/React.createElement(ItemFacts, {
       facts: item.facts
     }), /*#__PURE__*/React.createElement(ItemNotRated, {
@@ -7424,6 +7553,8 @@ function ShipModulesTab({
         }
       }, item.note), /*#__PURE__*/React.createElement(ItemDesc, {
         desc: item.desc
+      }), /*#__PURE__*/React.createElement(ItemAcquire, {
+        acqNote: item.acqNote
       }), /*#__PURE__*/React.createElement(ItemFacts, {
         facts: item.facts
       }), /*#__PURE__*/React.createElement(ItemNotRated, {
@@ -7753,7 +7884,9 @@ function StratagemBuilder({
         color: warn ? "#f59e0b" : "#475569",
         marginTop: 3
       }
-    }, warn || item.note), /*#__PURE__*/React.createElement(ItemNotRated, {
+    }, warn || item.note), /*#__PURE__*/React.createElement(ItemAcquire, {
+      acqNote: item.acqNote
+    }), /*#__PURE__*/React.createElement(ItemNotRated, {
       notRated: item.notRated
     }), !isOwned && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -7785,6 +7918,12 @@ if (typeof window !== "undefined") {
     BOOSTER_ITEMS,
     VEHICLE_ITEMS,
     isFreeSource,
+    // `isWarbondGated` is the predicate WARBOND TARGETS now selects its whole population with, so a
+    // harness has to be able to drive it. Without it the only way to check that page's membership
+    // is to re-derive "is this source a Warbond" in the harness — the second copy this block exists
+    // to prevent. Every panel is mounted at once and stays mounted, so reading document.textContent
+    // cannot tell one tab's items from another's; the predicate is the only honest handle.
+    isWarbondGated,
     categoryFilters,
     matchesFilter,
     ALL_WARBONDS,
@@ -7792,7 +7931,10 @@ if (typeof window !== "undefined") {
     ARMOR_PIECES,
     ARMOR_CLASSES,
     resolveArmourPiece,
-    LOADOUT_POOL
+    LOADOUT_POOL,
+    // The permanently-owned starting kit. Exported so `selectall_qc.js` can subtract the baseline
+    // it must not fight, instead of keeping its own copy of the list and going stale.
+    ISSUED_IDS
   };
 }
 
